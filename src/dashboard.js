@@ -573,6 +573,8 @@ function layout(title, body, session = null) {
     .profile-dropdown { position: absolute; top: calc(100% + 8px); left: 0; min-width: 210px; padding: 12px; border: 1px solid #2a2f3a; border-radius: 8px; background: #181b22; box-shadow: 0 18px 45px rgba(0,0,0,.35); z-index: 10; }
     .profile-dropdown form { margin: 0; }
     .profile-dropdown button, .profile-dropdown .button { width: 100%; text-align: center; margin-top: 10px; box-sizing: border-box; }
+    .legal-links { max-width: 980px; margin: 0 auto; padding: 0 24px 24px; color: #94a3b8; }
+    .legal-links a { margin-left: 14px; }
     main { max-width: 980px; margin: 0 auto; padding: 24px; }
     a { color: #a78bfa; text-decoration: none; }
     label { display: block; margin: 16px 0 6px; color: #cbd5e1; }
@@ -655,6 +657,10 @@ function layout(title, body, session = null) {
     </div>
   </header>
   <main>${body}</main>
+  <footer class="legal-links">
+    <a href="/terms">Terms of Service</a>
+    <a href="/privacy">Privacy Policy</a>
+  </footer>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const sections = [...document.querySelectorAll(".panel-section")];
@@ -801,6 +807,52 @@ app.get("/invite", (req, res) => {
   }
 
   res.redirect(getBotInviteUrl());
+});
+
+app.get("/terms", (req, res) => {
+  res.send(layout("Terms of Service", `
+    <div class="card">
+      <h1>Terms of Service</h1>
+      <p class="muted">Last updated: May 23, 2026</p>
+      <p>By inviting or using Lehem Bot, you agree to these terms.</p>
+      <h2>Use of the Bot</h2>
+      <p>Lehem Bot provides Discord server tools such as tickets, verification, welcome messages, giveaways, moderation, music, and dashboard settings. Server administrators are responsible for how they configure and use the bot in their servers.</p>
+      <h2>Permissions</h2>
+      <p>The bot may require Discord permissions such as managing roles, channels, messages, and voice connections. Only grant permissions that you are comfortable giving to the bot.</p>
+      <h2>Content and Conduct</h2>
+      <p>You may not use the bot to harass users, break Discord's Terms of Service, distribute illegal content, or abuse Discord systems. We may disable access for servers that misuse the bot.</p>
+      <h2>Availability</h2>
+      <p>The bot is provided as-is. We try to keep it online, but we do not guarantee uninterrupted service, error-free operation, or permanent data availability.</p>
+      <h2>Premium Features</h2>
+      <p>If premium features are offered in the future, the payment terms, feature limits, and refund rules will be shown before purchase.</p>
+      <h2>Changes</h2>
+      <p>These terms may be updated from time to time. Continued use of the bot after changes means you accept the updated terms.</p>
+      <h2>Contact</h2>
+      <p>For support or questions, contact the bot owner through the official Discord support server or dashboard contact method when available.</p>
+    </div>
+  `));
+});
+
+app.get("/privacy", (req, res) => {
+  res.send(layout("Privacy Policy", `
+    <div class="card">
+      <h1>Privacy Policy</h1>
+      <p class="muted">Last updated: May 23, 2026</p>
+      <p>This policy explains what information Lehem Bot stores and uses.</p>
+      <h2>Information We Store</h2>
+      <p>The bot may store Discord IDs for servers, channels, roles, users, ticket settings, giveaway participants, and dashboard configuration. Ticket transcripts may include message content when transcript logging is enabled by server administrators.</p>
+      <h2>How Information Is Used</h2>
+      <p>Information is used to provide bot features, save server settings, manage tickets, run giveaways, handle moderation, and show dashboard controls to authorized administrators.</p>
+      <h2>Who Can Access Settings</h2>
+      <p>The dashboard is limited to users who have Administrator permission in the Discord server. Server administrators control their own server configuration.</p>
+      <h2>Data Removal</h2>
+      <p>Server administrators can disable features and remove stored configuration where dashboard controls are available. For additional deletion requests, contact the bot owner.</p>
+      <h2>Third Parties</h2>
+      <p>The bot uses Discord services and may use hosting providers such as Render. Discord login uses OAuth to confirm identity and server administrator access.</p>
+      <h2>Contact</h2>
+      <p>For privacy questions, contact the bot owner through the official Discord support server or dashboard contact method when available.</p>
+    </div>
+  `));
 });
 
 app.get("/auth/discord/callback", async (req, res) => {
