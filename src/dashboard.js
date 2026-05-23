@@ -247,6 +247,7 @@ function buildGuildConfigFromBody(body) {
     ticketPanelTitle: body.ticketPanelTitle.trim(),
     ticketPanelDescription: body.ticketPanelDescription.trim(),
     ticketNameMode: body.ticketNameMode || "number",
+    ticketTranscriptChannelId: body.ticketTranscriptChannelId.trim(),
     ticketTypes: parseTicketTypes(body),
     staffRoleIds: parseIds(body.staffRoleIds),
     verifiedRoleId: body.verifiedRoleId.trim(),
@@ -997,6 +998,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h3>הרשאות ומיקום</h3>
           <label>קטגוריית טיקטים</label>
           ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
+          <label>חדר Transcript לטיקטים</label>
+          ${select("ticketTranscriptChannelId", textChannelOptions, config.ticketTranscriptChannelId, "לא לשלוח Transcript")}
           <label>רול שיכול לפתוח טיקט</label>
           ${select("ticketOpenRoleId", roleOptions, config.ticketOpenRoleId, "כולם יכולים לפתוח")}
           <label>רולים שיכולים לקחת/לסגור טיקט</label>

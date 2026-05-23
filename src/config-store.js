@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = {
   ticketPanelDescription: "לחצו על הכפתור כדי לפתוח טיקט לצוות.",
   ticketNameMode: "number",
   ticketCounter: 0,
+  ticketTranscriptChannelId: "",
   ticketTypes: [
     {
       id: "general",

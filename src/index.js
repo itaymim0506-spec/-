@@ -177,11 +177,72 @@ function hasEveryoneFinished(channel) {
   return requiredUserIds.length === 2 && requiredUserIds.every((userId) => finishVotes?.has(userId));
 }
 
+async function fetchAllMessages(channel) {
+  const messages = [];
+  let before;
+
+  while (true) {
+    const batch = await channel.messages.fetch({ limit: 100, before }).catch(() => null);
+    if (!batch?.size) break;
+    messages.push(...batch.values());
+    before = batch.last().id;
+    if (batch.size < 100) break;
+  }
+
+  return messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+}
+
+function messageToTranscriptLine(message) {
+  const time = new Date(message.createdTimestamp).toISOString();
+  const author = `${message.author?.tag || message.author?.username || "Unknown"} (${message.author?.id || "unknown"})`;
+  const content = message.content || "";
+  const attachments = [...message.attachments.values()].map((attachment) => attachment.url);
+  const embeds = message.embeds?.length ? [`[${message.embeds.length} embed(s)]`] : [];
+  const extras = [...attachments, ...embeds].join(" ");
+  return `[${time}] ${author}: ${content}${extras ? ` ${extras}` : ""}`;
+}
+
+async function sendTicketTranscript(channel, closedByLabel = "Unknown") {
+  const ticketOwnerId = getTicketOwnerId(channel);
+  if (!ticketOwnerId) return;
+
+  const { ticketTranscriptChannelId } = getGuildConfig(channel.guild.id);
+  if (!ticketTranscriptChannelId) return;
+
+  const transcriptChannel = await channel.guild.channels.fetch(ticketTranscriptChannelId).catch(() => null);
+  if (!transcriptChannel?.isTextBased()) return;
+
+  const messages = await fetchAllMessages(channel);
+  const transcript = [
+    `Transcript for #${channel.name}`,
+    `Guild: ${channel.guild.name} (${channel.guild.id})`,
+    `Channel: ${channel.name} (${channel.id})`,
+    `Ticket owner: ${ticketOwnerId}`,
+    `Closed by: ${closedByLabel}`,
+    `Created at: ${channel.createdAt?.toISOString() || "unknown"}`,
+    `Closed at: ${new Date().toISOString()}`,
+    "",
+    ...messages.map(messageToTranscriptLine),
+    "",
+  ].join("\n");
+
+  const buffer = Buffer.from(transcript, "utf8");
+  const safeName = channel.name.replace(/[^a-z0-9-]/gi, "-").slice(0, 60) || "ticket";
+
+  await transcriptChannel.send({
+    content: `Transcript לטיקט ${channel.name} | נפתח על ידי <@${ticketOwnerId}> | נסגר על ידי ${closedByLabel}`,
+    files: [{ attachment: buffer, name: `${safeName}-transcript.txt` }],
+  }).catch(console.error);
+}
+
 async function scheduleChannelClose(channel, reason) {
   if (closingChannels.has(channel.id)) return;
   closingChannels.add(channel.id);
 
   const shouldResendTicketPanel = Boolean(getTicketOwnerId(channel));
+  if (shouldResendTicketPanel) {
+    await sendTicketTranscript(channel, "סגירה אוטומטית").catch(console.error);
+  }
   await channel.send(reason).catch(console.error);
   setTimeout(() => {
     if (shouldResendTicketPanel) {
@@ -928,6 +989,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     await interaction.reply("הטיקט ייסגר בעוד 5 שניות.");
+    await sendTicketTranscript(interaction.channel, `${interaction.user.tag || interaction.user.username} (${interaction.user.id})`).catch(console.error);
     setTimeout(() => {
       resendTicketPanel(interaction.guild, interaction.channel).catch(console.error);
       interaction.channel.delete("Ticket closed").catch(console.error);
