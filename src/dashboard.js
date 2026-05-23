@@ -398,6 +398,15 @@ function getBotInviteUrl() {
   return inviteUrl.toString();
 }
 
+function getUserAvatarUrl(user) {
+  if (!user) return "https://cdn.discordapp.com/embed/avatars/0.png";
+  if (user.avatar) {
+    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`;
+  }
+  const discriminator = Number(user.discriminator || 0);
+  return `https://cdn.discordapp.com/embed/avatars/${discriminator % 5}.png`;
+}
+
 function sendResultPage(title, message, guildId, section) {
   return layout(title, `
     <div class="card">
@@ -429,7 +438,8 @@ function getRoleOptions(guild) {
     .map((role) => ({ id: role.id, label: role.name }));
 }
 
-function layout(title, body) {
+function layout(title, body, session = null) {
+  const user = session?.user;
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -445,10 +455,21 @@ function layout(title, body) {
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #111318; color: #f4f6fb; }
     header { padding: 16px 24px; background: #181b22; border-bottom: 1px solid #2a2f3a; }
+    .topbar { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-mark { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; border: 1px solid #7c3aed; background: #0f1117; }
     .brand-name { display: block; font-size: 20px; font-weight: 800; color: #fff; }
     .brand-sub { display: block; color: #94a3b8; font-size: 12px; margin-top: 2px; }
+    .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .header-actions .button { margin-top: 0; }
+    .profile-menu { position: relative; }
+    .profile-menu summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #374151; border-radius: 8px; background: #0f1117; cursor: pointer; }
+    .profile-menu summary::-webkit-details-marker { display: none; }
+    .profile-avatar { width: 30px; height: 30px; border-radius: 50%; background: #181b22; }
+    .profile-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .profile-dropdown { position: absolute; top: calc(100% + 8px); left: 0; min-width: 210px; padding: 12px; border: 1px solid #2a2f3a; border-radius: 8px; background: #181b22; box-shadow: 0 18px 45px rgba(0,0,0,.35); z-index: 10; }
+    .profile-dropdown form { margin: 0; }
+    .profile-dropdown button, .profile-dropdown .button { width: 100%; text-align: center; margin-top: 10px; box-sizing: border-box; }
     main { max-width: 980px; margin: 0 auto; padding: 24px; }
     a { color: #a78bfa; text-decoration: none; }
     label { display: block; margin: 16px 0 6px; color: #cbd5e1; }
@@ -499,12 +520,35 @@ function layout(title, body) {
 </head>
 <body>
   <header>
-    <div class="brand">
-      <img class="brand-mark" src="/assets/bot-logo.jpg" alt="בוט לחם">
-      <span>
-        <span class="brand-name">בוט לחם</span>
-        <span class="brand-sub">דאשבורד ניהול דיסקורד</span>
-      </span>
+    <div class="topbar">
+      <div class="brand">
+        <img class="brand-mark" src="/assets/bot-logo.jpg" alt="בוט לחם">
+        <span>
+          <span class="brand-name">בוט לחם</span>
+          <span class="brand-sub">דאשבורד ניהול דיסקורד</span>
+        </span>
+      </div>
+      <div class="header-actions">
+        <a class="button" href="/invite">Add to your server</a>
+        ${user ? `
+          <details class="profile-menu">
+            <summary>
+              <img class="profile-avatar" src="${escapeHtml(getUserAvatarUrl(user))}" alt="">
+              <span class="profile-name">${escapeHtml(user.global_name || user.username || "Discord user")}</span>
+            </summary>
+            <div class="profile-dropdown">
+              <strong>${escapeHtml(user.global_name || user.username || "Discord user")}</strong>
+              <p class="muted">${escapeHtml(user.username || "")}</p>
+              <form method="post" action="/switch-account">
+                <button type="submit" class="button secondary">החלף חשבון</button>
+              </form>
+              <form method="post" action="/logout">
+                <button type="submit" class="button secondary">התנתק</button>
+              </form>
+            </div>
+          </details>
+        ` : ""}
+      </div>
     </div>
   </header>
   <main>${body}</main>
@@ -722,6 +766,13 @@ app.post("/logout", (req, res) => {
   res.redirect("/login");
 });
 
+app.post("/switch-account", (req, res) => {
+  const sessionId = parseCookies(req).dashboard_session;
+  if (sessionId) sessions.delete(sessionId);
+  clearCookie(res, "dashboard_session");
+  res.redirect("/auth/discord");
+});
+
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain").send([
     "User-agent: *",
@@ -776,7 +827,7 @@ app.get("/", requireAuth, async (req, res) => {
         ${guilds.map((guild) => `<a class="card" href="/guild/${guild.id}">${guild.name}<br><span class="muted">${guild.id}</span></a>`).join("") || "<p>הבוט לא נמצא באף שרת.</p>"}
       </div>
     </div>
-  `));
+  `, session));
 });
 
 app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
@@ -944,7 +995,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         </div>
       </section>
     </form>
-  `));
+  `, getSession(req)));
 });
 
 app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
