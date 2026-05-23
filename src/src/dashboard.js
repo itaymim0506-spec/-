@@ -7,7 +7,7 @@ const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-sto
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
 const BASE_URL = (process.env.DASHBOARD_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET;
+const DISCORD_CLIENT_SECRET = String(process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET || "").trim();
 const DISCORD_REDIRECT_URI = `${BASE_URL}/auth/discord/callback`;
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
   .trim()
@@ -98,7 +98,8 @@ async function exchangeDiscordCode(code) {
   });
 
   if (!response.ok) {
-    throw new Error(`Discord token exchange failed with ${response.status}`);
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(`Discord token exchange failed with ${response.status}: ${errorBody}`);
   }
 
   return response.json();
@@ -248,7 +249,15 @@ app.get("/auth/discord/callback", async (req, res) => {
     res.redirect("/");
   } catch (error) {
     console.error(error);
-    res.status(500).send(layout("Login failed", `<div class="card">Discord login failed. <a href="/login">Try again</a></div>`));
+    res.status(500).send(layout("Login failed", `
+      <div class="card">
+        <h2>Discord login failed</h2>
+        <p>Check <code>DISCORD_CLIENT_SECRET</code> and the OAuth2 Redirect URL in Discord Developer Portal.</p>
+        <p class="muted">Redirect URL must be exactly:</p>
+        <pre>${DISCORD_REDIRECT_URI}</pre>
+        <a href="/login">Try again</a>
+      </div>
+    `));
   }
 });
 
