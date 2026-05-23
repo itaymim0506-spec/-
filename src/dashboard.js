@@ -437,6 +437,7 @@ function layout(title, body) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="בוט לחם - דאשבורד לניהול בוט דיסקורד, טיקטים, אימות, הודעות ברוכים הבאים ועזרה לצוות.">
   <meta name="keywords" content="בוט לחם, לחם בוט, discord bot, בוט דיסקורד, טיקטים דיסקורד, dashboard discord">
+  <meta name="google-site-verification" content="t_E1zoSmpZ9zBm0DRAKltCWtZypOImgrNE-quWhemQA">
   <meta property="og:title" content="בוט לחם">
   <meta property="og:description" content="דאשבורד לניהול בוט דיסקורד של לחם.">
   <meta property="og:type" content="website">
