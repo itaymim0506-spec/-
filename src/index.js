@@ -575,6 +575,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    setGuildConfig(interaction.guild.id, { verifyPanelChannelId: interaction.channel.id });
     await interaction.channel.send(buildVerifyPanel(interaction.guild.id));
 
     await interaction.reply({ content: "Verification panel posted.", flags: 64 });

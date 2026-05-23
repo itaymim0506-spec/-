@@ -40,6 +40,7 @@ const DEFAULT_CONFIG = {
     "1498364688520450049",
   ],
   verifiedRoleId: process.env.VERIFIED_ROLE_ID || "1498364648226033664",
+  verifyPanelChannelId: "",
   verifyText: "כדי להיות מאומתים לחצו על הכפתור",
   verifyButtonLabel: "Verify",
   verifyAccentColor: "#f17100",

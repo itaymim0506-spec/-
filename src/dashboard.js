@@ -1,8 +1,18 @@
 require("dotenv").config();
 
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
-const { ChannelType, Client, GatewayIntentBits } = require("discord.js");
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  Client,
+  EmbedBuilder,
+  GatewayIntentBits,
+} = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
@@ -15,6 +25,13 @@ const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
 const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
+const VERIFY_BUTTON_ID = "verify_member";
+const TICKET_PANEL_IMAGE_PATH = path.join(
+  process.env.USERPROFILE || "C:\\Users\\איתי",
+  "Downloads",
+  "ChatGPT Image May 13, 2026, 08_57_08 PM.png",
+);
+const TICKET_PANEL_IMAGE_NAME = "tickets-banner.png";
 
 const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -47,6 +64,154 @@ function slugForConfig(value, fallback = "ticket") {
     .replace(/^-|-$/g, "")
     .slice(0, 40);
   return cleaned || fallback;
+}
+
+function parseColor(value, fallback = 0x2ecc71) {
+  const hex = String(value || "").trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) return Number.parseInt(hex, 16);
+  return fallback;
+}
+
+function getTicketTypes(config) {
+  const ticketTypes = Array.isArray(config.ticketTypes) && config.ticketTypes.length
+    ? config.ticketTypes
+    : DEFAULT_CONFIG.ticketTypes;
+
+  return ticketTypes.map((ticketType, index) => {
+    const id = slugForConfig(ticketType.id || ticketType.buttonLabel || `ticket-${index + 1}`, `ticket-${index + 1}`);
+    return {
+      id,
+      buttonId: `open_ticket_${id}`,
+      buttonLabel: ticketType.buttonLabel || `טיקט ${index + 1}`,
+      channelPrefix: slugForConfig(ticketType.channelPrefix || ticketType.buttonLabel || id, "ticket"),
+    };
+  });
+}
+
+function formatPreviewTemplate(template, guild) {
+  return String(template || "")
+    .replaceAll("{user}", "@משתמש")
+    .replaceAll("{username}", "משתמש")
+    .replaceAll("{server}", guild.name);
+}
+
+function buildTicketPanelMessages(guildId) {
+  const config = getGuildConfig(guildId);
+  const ticketTypes = getTicketTypes(config);
+  const chunks = [];
+  for (let index = 0; index < ticketTypes.length; index += 25) {
+    chunks.push(ticketTypes.slice(index, index + 25));
+  }
+
+  return chunks.map((chunk, chunkIndex) => {
+    const embed = new EmbedBuilder()
+      .setColor(0x8b2cff)
+      .setTitle(chunks.length > 1 ? `${config.ticketPanelTitle || "פתיחת טיקטים"} ${chunkIndex + 1}` : (config.ticketPanelTitle || "פתיחת טיקטים"))
+      .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
+
+    const files = [];
+    if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
+      embed.setImage(`attachment://${TICKET_PANEL_IMAGE_NAME}`);
+      files.push({ attachment: TICKET_PANEL_IMAGE_PATH, name: TICKET_PANEL_IMAGE_NAME });
+    }
+
+    const rows = [];
+    for (let index = 0; index < chunk.length; index += 5) {
+      rows.push(new ActionRowBuilder().addComponents(
+        chunk.slice(index, index + 5).map((ticketType) => new ButtonBuilder()
+          .setCustomId(ticketType.buttonId)
+          .setLabel(ticketType.buttonLabel)
+          .setStyle(ButtonStyle.Primary)),
+      ));
+    }
+
+    return { embeds: [embed], components: rows, files };
+  });
+}
+
+function buildVerifyPanel(guildId) {
+  const config = getGuildConfig(guildId);
+  const components = [
+    { type: 10, content: config.verifyText || "כדי להיות מאומתים לחצו על הכפתור" },
+  ];
+
+  if (config.verifyImageUrl) {
+    components.push({ type: 12, items: [{ media: { url: config.verifyImageUrl } }] });
+  }
+
+  components.push({
+    type: 1,
+    components: [
+      {
+        type: 2,
+        custom_id: VERIFY_BUTTON_ID,
+        label: config.verifyButtonLabel || "Verify",
+        style: 3,
+      },
+    ],
+  });
+
+  return {
+    flags: 32768,
+    components: [
+      {
+        type: 17,
+        components,
+        accent_color: parseColor(config.verifyAccentColor, 0xf17100),
+      },
+    ],
+  };
+}
+
+function buildWelcomeMessage(guild) {
+  const config = getGuildConfig(guild.id);
+  const embed = new EmbedBuilder()
+    .setColor(parseColor(config.welcomeColor))
+    .setTitle(config.welcomeTitle || "Welcome!")
+    .setDescription(formatPreviewTemplate(config.welcomeMessage || "Hey {user}, welcome to **{server}**.", guild))
+    .setTimestamp();
+
+  if (client.user) {
+    embed.setThumbnail(client.user.displayAvatarURL({ size: 128 }));
+  }
+
+  if (config.welcomeImageUrl) {
+    embed.setImage(config.welcomeImageUrl);
+  }
+
+  return { embeds: [embed] };
+}
+
+function buildGuildConfigFromBody(body) {
+  return {
+    features: {
+      verify: Boolean(body.featureVerify),
+      welcome: Boolean(body.featureWelcome),
+      help: Boolean(body.featureHelp),
+      tickets: Boolean(body.featureTickets),
+      editBattles: Boolean(body.featureEditBattles),
+    },
+    ticketCategoryId: body.ticketCategoryId.trim(),
+    ticketOpenRoleId: body.ticketOpenRoleId.trim(),
+    ticketPanelChannelId: body.ticketPanelChannelId.trim(),
+    ticketPanelTitle: body.ticketPanelTitle.trim(),
+    ticketPanelDescription: body.ticketPanelDescription.trim(),
+    ticketNameMode: body.ticketNameMode || "number",
+    ticketTypes: parseTicketTypes(body),
+    staffRoleIds: parseIds(body.staffRoleIds),
+    verifiedRoleId: body.verifiedRoleId.trim(),
+    verifyPanelChannelId: body.verifyPanelChannelId.trim(),
+    verifyText: body.verifyText.trim(),
+    verifyButtonLabel: body.verifyButtonLabel.trim(),
+    verifyAccentColor: body.verifyAccentColor.trim(),
+    verifyImageUrl: body.verifyImageUrl.trim(),
+    welcomeChannelId: body.welcomeChannelId.trim(),
+    welcomeTitle: body.welcomeTitle.trim(),
+    welcomeMessage: body.welcomeMessage.trim(),
+    welcomeColor: body.welcomeColor.trim(),
+    welcomeImageUrl: body.welcomeImageUrl.trim(),
+    editBattlePanelChannelId: body.editBattlePanelChannelId.trim(),
+  };
 }
 
 function parseTicketTypes(body) {
@@ -169,6 +334,12 @@ function requireGuildAdmin(req, res, next) {
   res.status(403).send(layout("No Access", `<div class="card">You need Administrator in this server to control its bot settings. <a href="/">Back</a></div>`));
 }
 
+async function getWritableTextChannel(guild, channelId) {
+  if (!channelId) return null;
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  return channel?.isTextBased() ? channel : null;
+}
+
 async function discordFetch(path, accessToken) {
   const response = await fetch(`https://discord.com/api/v10${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -225,6 +396,16 @@ function getBotInviteUrl() {
   inviteUrl.searchParams.set("permissions", "8");
   inviteUrl.searchParams.set("scope", "bot applications.commands");
   return inviteUrl.toString();
+}
+
+function sendResultPage(title, message, guildId, section) {
+  return layout(title, `
+    <div class="card">
+      <h2>${escapeHtml(title)}</h2>
+      <p>${escapeHtml(message)}</p>
+      <a class="button" href="/guild/${escapeHtml(guildId)}#${escapeHtml(section)}">חזרה</a>
+    </div>
+  `);
 }
 
 function getCategoryOptions(guild) {
@@ -665,6 +846,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textArea("ticketPanelDescription", config.ticketPanelDescription, "כתוב כאן מה המשתמשים צריכים לדעת לפני פתיחת טיקט.")}
           <label>חדר שבו תופיע הודעת הטיקטים</label>
           ${select("ticketPanelChannelId", textChannelOptions, config.ticketPanelChannelId, "החדר שבו מריצים /setup-ticket")}
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-ticket-panel" formmethod="post">שלח הודעת טיקטים עכשיו</button>
           <label>איך לקרוא לחדר שנפתח</label>
           ${select("ticketNameMode", [
             { id: "number", label: "לפי מספר הטיקט" },
@@ -707,6 +889,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h2>אימות</h2>
           <label>רול Verify</label>
           ${select("verifiedRoleId", roleOptions, config.verifiedRoleId, "לא מוגדר")}
+          <label>חדר הודעת Verify</label>
+          ${select("verifyPanelChannelId", textChannelOptions, config.verifyPanelChannelId, "בחר חדר לשליחה מהאתר")}
           <label>טקסט הודעת Verify</label>
           ${textArea("verifyText", config.verifyText, "כדי להיות מאומתים לחצו על הכפתור")}
           <label>שם הכפתור</label>
@@ -720,6 +904,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
             <img data-verify-preview-image src="${escapeHtml(config.verifyImageUrl || "")}" alt="תמונת Verify">
             <span class="verify-preview-button" data-verify-preview-button>${escapeHtml(config.verifyButtonLabel || "Verify")}</span>
           </div>
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-verify-panel" formmethod="post">שלח הודעת Verify עכשיו</button>
         </div>
 
         <div id="welcome" class="panel-section card">
@@ -743,6 +928,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
             <img class="welcome-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="תמונת פרופיל">
             <img class="welcome-preview-image" data-welcome-preview-image src="${escapeHtml(config.welcomeImageUrl || "")}" alt="תמונת Welcome">
           </div>
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-welcome-panel" formmethod="post">שלח הודעת Welcome עכשיו</button>
         </div>
 
         <div id="help" class="panel-section card">
@@ -761,35 +947,59 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 });
 
 app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
-  setGuildConfig(req.params.guildId, {
-    features: {
-      verify: Boolean(req.body.featureVerify),
-      welcome: Boolean(req.body.featureWelcome),
-      help: Boolean(req.body.featureHelp),
-      tickets: Boolean(req.body.featureTickets),
-      editBattles: Boolean(req.body.featureEditBattles),
-    },
-    ticketCategoryId: req.body.ticketCategoryId.trim(),
-    ticketOpenRoleId: req.body.ticketOpenRoleId.trim(),
-    ticketPanelChannelId: req.body.ticketPanelChannelId.trim(),
-    ticketPanelTitle: req.body.ticketPanelTitle.trim(),
-    ticketPanelDescription: req.body.ticketPanelDescription.trim(),
-    ticketNameMode: req.body.ticketNameMode || "number",
-    ticketTypes: parseTicketTypes(req.body),
-    staffRoleIds: parseIds(req.body.staffRoleIds),
-    verifiedRoleId: req.body.verifiedRoleId.trim(),
-    verifyText: req.body.verifyText.trim(),
-    verifyButtonLabel: req.body.verifyButtonLabel.trim(),
-    verifyAccentColor: req.body.verifyAccentColor.trim(),
-    verifyImageUrl: req.body.verifyImageUrl.trim(),
-    welcomeChannelId: req.body.welcomeChannelId.trim(),
-    welcomeTitle: req.body.welcomeTitle.trim(),
-    welcomeMessage: req.body.welcomeMessage.trim(),
-    welcomeColor: req.body.welcomeColor.trim(),
-    welcomeImageUrl: req.body.welcomeImageUrl.trim(),
-    editBattlePanelChannelId: req.body.editBattlePanelChannelId.trim(),
-  });
+  setGuildConfig(req.params.guildId, buildGuildConfigFromBody(req.body));
   res.redirect(`/guild/${req.params.guildId}`);
+});
+
+app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, async (req, res) => {
+  const { guildId } = req.params;
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+
+  const guild = client.guilds.cache.get(guildId);
+  const config = getGuildConfig(guildId);
+  const channel = guild ? await getWritableTextChannel(guild, config.ticketPanelChannelId) : null;
+  if (!guild || !channel) {
+    res.status(400).send(sendResultPage("לא נשלח", "צריך לבחור חדר תקין להודעת הטיקטים.", guildId, "tickets"));
+    return;
+  }
+
+  for (const panel of buildTicketPanelMessages(guildId)) {
+    await channel.send(panel);
+  }
+
+  res.send(sendResultPage("נשלח", "הודעת הטיקטים נשלחה לחדר שבחרת.", guildId, "tickets"));
+});
+
+app.post("/guild/:guildId/send-verify-panel", requireAuth, requireGuildAdmin, async (req, res) => {
+  const { guildId } = req.params;
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+
+  const guild = client.guilds.cache.get(guildId);
+  const config = getGuildConfig(guildId);
+  const channel = guild ? await getWritableTextChannel(guild, config.verifyPanelChannelId) : null;
+  if (!guild || !channel) {
+    res.status(400).send(sendResultPage("לא נשלח", "צריך לבחור חדר תקין להודעת Verify.", guildId, "verify"));
+    return;
+  }
+
+  await channel.send(buildVerifyPanel(guildId));
+  res.send(sendResultPage("נשלח", "הודעת Verify נשלחה לחדר שבחרת.", guildId, "verify"));
+});
+
+app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, async (req, res) => {
+  const { guildId } = req.params;
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+
+  const guild = client.guilds.cache.get(guildId);
+  const config = getGuildConfig(guildId);
+  const channel = guild ? await getWritableTextChannel(guild, config.welcomeChannelId) : null;
+  if (!guild || !channel) {
+    res.status(400).send(sendResultPage("לא נשלח", "צריך לבחור חדר Welcome תקין.", guildId, "welcome"));
+    return;
+  }
+
+  await channel.send(buildWelcomeMessage(guild));
+  res.send(sendResultPage("נשלח", "הודעת Welcome נשלחה לחדר שבחרת.", guildId, "welcome"));
 });
 
 app.listen(PORT, () => {
