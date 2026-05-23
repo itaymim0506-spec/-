@@ -13,13 +13,17 @@ const {
   Events,
   GatewayIntentBits,
   PermissionFlagsBits,
+  REST,
+  Routes,
 } = require("discord.js");
 
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
   .trim()
   .replace(/^Bot\s+/i, "");
+const { CLIENT_ID } = process.env;
 
 const { getGuildConfig } = require("./config-store");
+const { buildSlashCommands } = require("./slash-commands");
 
 if (!DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN in .env");
@@ -287,6 +291,38 @@ function buildEditBattlePanel() {
   return { embeds: [embed], components: [row], files };
 }
 
+async function sendFreshPanels(guild, channel) {
+  const { features, editBattlePanelChannelId } = getGuildConfig(guild.id);
+  const sentPanels = [];
+
+  if (features.verify) {
+    await channel.send(buildVerifyPanel());
+    sentPanels.push("Verify");
+  }
+
+  if (features.tickets) {
+    await channel.send(buildTicketPanel());
+    sentPanels.push("Tickets");
+  }
+
+  if (features.editBattles) {
+    const editBattleChannel = await guild.channels.fetch(editBattlePanelChannelId).catch(() => null);
+    const targetChannel = editBattleChannel?.isTextBased() ? editBattleChannel : channel;
+    await targetChannel.send(buildEditBattlePanel());
+    sentPanels.push("Edit battles");
+  }
+
+  return sentPanels;
+}
+
+async function syncSlashCommands() {
+  if (!CLIENT_ID || !DISCORD_TOKEN) return;
+
+  const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: buildSlashCommands() });
+  console.log("Slash commands synced.");
+}
+
 function pickRandomQueuedUserId() {
   const index = Math.floor(Math.random() * editBattleQueue.length);
   return editBattleQueue.splice(index, 1)[0];
@@ -298,6 +334,9 @@ function buildTicketTopic(ticketType, userId) {
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
+  syncSlashCommands().catch((error) => {
+    console.error("Slash command sync failed:", error);
+  });
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -340,20 +379,7 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    const { features, editBattlePanelChannelId } = getGuildConfig(message.guild.id);
-    if (features.verify) {
-      await message.channel.send(buildVerifyPanel()).catch(console.error);
-    }
-
-    if (features.tickets) {
-      await message.channel.send(buildTicketPanel()).catch(console.error);
-    }
-
-    if (features.editBattles) {
-      const editBattleChannel = await message.guild.channels.fetch(editBattlePanelChannelId).catch(() => null);
-      const targetChannel = editBattleChannel?.isTextBased() ? editBattleChannel : message.channel;
-      await targetChannel.send(buildEditBattlePanel()).catch(console.error);
-    }
+    await sendFreshPanels(message.guild, message.channel).catch(console.error);
 
     await message.reply("חידשתי את הכפתורים הפעילים לשרת הזה.").catch(console.error);
     return;
@@ -540,6 +566,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    await interaction.deferReply({ flags: 64 });
+
     const permissionOverwrites = [
       { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
@@ -577,10 +605,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       permissionOverwrites,
     }).catch(async (error) => {
       console.error(error);
-      await interaction.reply({
-        content: "לא הצלחתי לפתוח טיקט. תבדוק שיש לי הרשאת Manage Channels ושהקטגוריה קיימת.",
-        flags: 64,
-      });
+      await interaction.editReply("לא הצלחתי לפתוח טיקט. תבדוק שיש לי הרשאת Manage Channels ושהקטגוריה קיימת.");
       return null;
     });
 
@@ -602,7 +627,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       components: [buildTicketActionRow()],
     });
 
-    await interaction.reply({ content: `פתחתי לך טיקט: ${ticketChannel}`, flags: 64 });
+    await interaction.editReply(`פתחתי לך טיקט: ${ticketChannel}`);
     return;
   }
 
