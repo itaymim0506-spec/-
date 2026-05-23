@@ -95,6 +95,11 @@ function textInput(name, value, placeholder = "") {
   return `<input name="${name}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(placeholder)}">`;
 }
 
+function colorInput(name, value) {
+  const color = /^#[0-9a-fA-F]{6}$/.test(String(value || "")) ? value : "#2ecc71";
+  return `<input type="color" name="${name}" value="${escapeHtml(color)}" data-welcome-color>`;
+}
+
 function textArea(name, value, placeholder = "") {
   return `<textarea name="${name}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value || "")}</textarea>`;
 }
@@ -267,6 +272,7 @@ function layout(title, body) {
     label { display: block; margin: 16px 0 6px; color: #cbd5e1; }
     input, textarea, select { width: 100%; box-sizing: border-box; padding: 11px; border-radius: 6px; border: 1px solid #374151; background: #0f1117; color: #f4f6fb; }
     input[type="checkbox"] { width: auto; margin-left: 8px; }
+    input[type="color"] { height: 48px; padding: 4px; cursor: pointer; }
     textarea { min-height: 120px; direction: ltr; }
     button, .button { display: inline-block; margin-top: 18px; padding: 11px 16px; border: 0; border-radius: 6px; background: #7c3aed; color: white; cursor: pointer; }
     .button.secondary { background: #374151; }
@@ -293,6 +299,10 @@ function layout(title, body) {
     .save-row { position: sticky; bottom: 0; margin-top: 18px; padding: 12px 0; background: #111318; border-top: 1px solid #2a2f3a; }
     .ticket-type-row { padding: 14px; margin: 12px 0; border: 1px solid #374151; border-radius: 8px; background: #111318; }
     .ticket-type-row h4 { margin: 0 0 10px; }
+    .welcome-preview { display: grid; grid-template-columns: 1fr 82px; gap: 14px; align-items: start; margin-top: 16px; padding: 14px; border-radius: 8px; background: #0f1117; border-right: 5px solid #2ecc71; }
+    .welcome-preview h3 { margin: 0 0 8px; font-size: 18px; }
+    .welcome-preview p { margin: 0; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; }
+    .welcome-avatar { width: 72px; height: 72px; border-radius: 50%; border: 2px solid #374151; background: #181b22; }
     @media (max-width: 780px) {
       .guild-shell { grid-template-columns: 1fr; }
       .side-nav { position: static; }
@@ -347,6 +357,35 @@ function layout(title, body) {
         wireTicketRemovers();
       });
 
+      const welcomeTitle = document.querySelector("[name='welcomeTitle']");
+      const welcomeMessage = document.querySelector("[name='welcomeMessage']");
+      const welcomeColor = document.querySelector("[name='welcomeColor']");
+      const welcomePreview = document.querySelector("[data-welcome-preview]");
+      const welcomePreviewTitle = document.querySelector("[data-welcome-preview-title]");
+      const welcomePreviewMessage = document.querySelector("[data-welcome-preview-message]");
+
+      function renderWelcomePreview() {
+        if (!welcomePreview) return;
+        const replacements = {
+          "{user}": "@Itay",
+          "{username}": "Itay",
+          "{server}": "בוט לחם",
+        };
+        let message = welcomeMessage?.value || "";
+        Object.entries(replacements).forEach(([key, value]) => {
+          message = message.split(key).join(value);
+        });
+
+        welcomePreview.style.borderRightColor = welcomeColor?.value || "#2ecc71";
+        welcomePreviewTitle.textContent = welcomeTitle?.value || "Welcome!";
+        welcomePreviewMessage.textContent = message || "Hey @Itay, welcome to בוט לחם.";
+      }
+
+      [welcomeTitle, welcomeMessage, welcomeColor].forEach((field) => {
+        field?.addEventListener("input", renderWelcomePreview);
+      });
+
+      renderWelcomePreview();
       wireTicketRemovers();
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
@@ -641,7 +680,14 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textArea("welcomeMessage", config.welcomeMessage, "Hey {user}, welcome to **{server}**.")}
           <p class="muted">אפשר להשתמש ב־{user}, {username}, {server} בתוך ההודעה.</p>
           <label>צבע ההודעה</label>
-          ${textInput("welcomeColor", config.welcomeColor, "#2ecc71")}
+          ${colorInput("welcomeColor", config.welcomeColor)}
+          <div class="welcome-preview" data-welcome-preview>
+            <div>
+              <h3 data-welcome-preview-title>${escapeHtml(config.welcomeTitle || "Welcome!")}</h3>
+              <p data-welcome-preview-message>${escapeHtml(config.welcomeMessage || "Hey {user}, welcome to **{server}**.")}</p>
+            </div>
+            <img class="welcome-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="תמונת פרופיל">
+          </div>
         </div>
 
         <div id="help" class="panel-section card">
