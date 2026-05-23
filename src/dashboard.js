@@ -28,16 +28,24 @@ const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
 const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
-const UPLOAD_DIR = path.join(__dirname, "..", "public", "uploads");
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(DATA_DIR, "uploads");
 const VERIFY_BUTTON_ID = "verify_member";
 const TICKET_SELECT_MENU_ID = "select_ticket_type";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
+const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
 const TICKET_PANEL_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
   "Downloads",
   "ChatGPT Image May 13, 2026, 08_57_08 PM.png",
 );
 const TICKET_PANEL_IMAGE_NAME = "tickets-banner.png";
+const EDIT_BATTLE_IMAGE_PATH = path.join(
+  process.env.USERPROFILE || "C:\\Users\\איתי",
+  "Downloads",
+  "ChatGPT Image May 13, 2026, 09_18_40 PM.png",
+);
+const EDIT_BATTLE_IMAGE_NAME = "edit-battle.png";
 
 const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -67,6 +75,7 @@ const imageUpload = upload.fields([
 
 app.use(express.urlencoded({ extended: true }));
 app.use("/assets", express.static("public"));
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 function parseIds(value) {
   if (Array.isArray(value)) {
@@ -283,6 +292,28 @@ function pickGiveawayWinners(participants, winnerCount, previousWinnerIds = []) 
   return winners;
 }
 
+function buildEditBattlePanel() {
+  const embed = new EmbedBuilder()
+    .setColor(0x8b2cff)
+    .setTitle("חדר קרב")
+    .setDescription("לחץ על הכפתור כדי להצטרף לחדר קרב. כשיהיו לפחות שני משתתפים, הבוט ישדך שניים רנדומלית ויפתח להם חדר פרטי.");
+
+  const files = [];
+  if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
+    embed.setImage(`attachment://${EDIT_BATTLE_IMAGE_NAME}`);
+    files.push({ attachment: EDIT_BATTLE_IMAGE_PATH, name: EDIT_BATTLE_IMAGE_NAME });
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
+      .setLabel("פתיחת חדר קרב")
+      .setStyle(ButtonStyle.Primary),
+  );
+
+  return { embeds: [embed], components: [row], files };
+}
+
 function trimField(value) {
   return String(value || "").trim();
 }
@@ -290,7 +321,7 @@ function trimField(value) {
 function uploadedImageUrl(files, fieldName, fallbackValue) {
   const uploadedFile = files?.[fieldName]?.[0];
   if (!uploadedFile) return trimField(fallbackValue);
-  return `${BASE_URL}/assets/uploads/${uploadedFile.filename}`;
+  return `${BASE_URL}/uploads/${uploadedFile.filename}`;
 }
 
 function buildGuildConfigFromBody(body, files = {}) {
@@ -1030,6 +1061,9 @@ app.get("/", requireAuth, async (req, res) => {
 
 app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   const { guildId } = req.params;
+  const savedMessage = req.query.saved === "1"
+    ? `<div class="card"><strong>נשמר.</strong> ההגדרות עודכנו.</div>`
+    : "";
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
   if (!guild) {
@@ -1075,6 +1109,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
       </aside>
 
       <section>
+        ${savedMessage}
         <div id="home" class="panel-section active">
           <div class="home-hero">
             <h1 class="home-title">בוט לחם</h1>
@@ -1283,6 +1318,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h2>חדר קרב</h2>
           <label>חדר פאנל חדר קרב</label>
           ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-edit-battle-panel" formmethod="post">שלח פאנל חדר קרב עכשיו</button>
         </div>
       </section>
     </form>
@@ -1291,7 +1327,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 
 app.post("/guild/:guildId", requireAuth, requireGuildAdmin, imageUpload, (req, res) => {
   setGuildConfig(req.params.guildId, buildGuildConfigFromBody(req.body, req.files));
-  res.redirect(`/guild/${req.params.guildId}`);
+  res.redirect(`/guild/${req.params.guildId}?saved=1`);
 });
 
 app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
@@ -1343,6 +1379,22 @@ app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, i
 
   await channel.send(buildWelcomeMessage(guild));
   res.send(sendResultPage("נשלח", "הודעת Welcome נשלחה לחדר שבחרת.", guildId, "welcome"));
+});
+
+app.post("/guild/:guildId/send-edit-battle-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
+  const { guildId } = req.params;
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+
+  const guild = client.guilds.cache.get(guildId);
+  const config = getGuildConfig(guildId);
+  const channel = guild ? await getWritableTextChannel(guild, config.editBattlePanelChannelId) : null;
+  if (!guild || !channel) {
+    res.status(400).send(sendResultPage("לא נשלח", "צריך לבחור חדר תקין לפאנל חדר קרב.", guildId, "edit-battles"));
+    return;
+  }
+
+  await channel.send(buildEditBattlePanel());
+  res.send(sendResultPage("נשלח", "פאנל חדר קרב נשלח לחדר שבחרת.", guildId, "edit-battles"));
 });
 
 app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
