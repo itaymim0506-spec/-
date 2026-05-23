@@ -310,28 +310,35 @@ function buildTicketPanel(guildId) {
   return buildTicketPanelMessages(guildId)[0];
 }
 
-function buildVerifyPanel() {
+function buildVerifyPanel(guildId) {
+  const config = getGuildConfig(guildId);
+  const components = [
+    { type: 10, content: config.verifyText || "כדי להיות מאומתים לחצו על הכפתור" },
+  ];
+
+  if (config.verifyImageUrl || VERIFY_IMAGE_URL) {
+    components.push({ type: 12, items: [{ media: { url: config.verifyImageUrl || VERIFY_IMAGE_URL } }] });
+  }
+
+  components.push({
+    type: 1,
+    components: [
+      {
+        type: 2,
+        custom_id: VERIFY_BUTTON_ID,
+        label: config.verifyButtonLabel || "Verify",
+        style: 3,
+      },
+    ],
+  });
+
   return {
     flags: 32768,
     components: [
       {
         type: 17,
-        components: [
-          { type: 10, content: "כדי להיות מאומתים לחצו על הכפתור" },
-          { type: 12, items: [{ media: { url: VERIFY_IMAGE_URL } }] },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                custom_id: VERIFY_BUTTON_ID,
-                label: "Verify",
-                style: 3,
-              },
-            ],
-          },
-        ],
-        accent_color: 15823360,
+        components,
+        accent_color: parseColor(config.verifyAccentColor, 0xf17100),
       },
     ],
   };
@@ -378,7 +385,7 @@ async function sendFreshPanels(guild, channel) {
   const sentPanels = [];
 
   if (features.verify) {
-    await channel.send(buildVerifyPanel());
+    await channel.send(buildVerifyPanel(guild.id));
     sentPanels.push("Verify");
   }
 
@@ -568,7 +575,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    await interaction.channel.send(buildVerifyPanel());
+    await interaction.channel.send(buildVerifyPanel(interaction.guild.id));
 
     await interaction.reply({ content: "Verification panel posted.", flags: 64 });
     return;

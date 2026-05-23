@@ -304,6 +304,10 @@ function layout(title, body) {
     .welcome-preview p { margin: 0; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; }
     .welcome-avatar { width: 72px; height: 72px; border-radius: 50%; border: 2px solid #374151; background: #181b22; }
     .welcome-preview-image { grid-column: 1 / -1; width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #2a2f3a; display: none; }
+    .verify-preview { margin-top: 16px; padding: 14px; border-radius: 8px; background: #0f1117; border-right: 5px solid #f17100; }
+    .verify-preview p { margin: 0 0 12px; color: #f4f6fb; line-height: 1.5; white-space: pre-wrap; }
+    .verify-preview img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #2a2f3a; display: none; margin-bottom: 12px; }
+    .verify-preview-button { display: inline-block; padding: 9px 14px; border-radius: 6px; background: #2ecc71; color: #fff; font-weight: 700; }
     @media (max-width: 780px) {
       .guild-shell { grid-template-columns: 1fr; }
       .side-nav { position: static; }
@@ -366,6 +370,14 @@ function layout(title, body) {
       const welcomePreviewTitle = document.querySelector("[data-welcome-preview-title]");
       const welcomePreviewMessage = document.querySelector("[data-welcome-preview-message]");
       const welcomePreviewImage = document.querySelector("[data-welcome-preview-image]");
+      const verifyText = document.querySelector("[name='verifyText']");
+      const verifyButtonLabel = document.querySelector("[name='verifyButtonLabel']");
+      const verifyAccentColor = document.querySelector("[name='verifyAccentColor']");
+      const verifyImageUrl = document.querySelector("[name='verifyImageUrl']");
+      const verifyPreview = document.querySelector("[data-verify-preview]");
+      const verifyPreviewText = document.querySelector("[data-verify-preview-text]");
+      const verifyPreviewButton = document.querySelector("[data-verify-preview-button]");
+      const verifyPreviewImage = document.querySelector("[data-verify-preview-image]");
 
       function renderWelcomePreview() {
         if (!welcomePreview) return;
@@ -394,7 +406,25 @@ function layout(title, body) {
         field?.addEventListener("input", renderWelcomePreview);
       });
 
+      function renderVerifyPreview() {
+        if (!verifyPreview) return;
+        verifyPreview.style.borderRightColor = verifyAccentColor?.value || "#f17100";
+        verifyPreviewText.textContent = verifyText?.value || "כדי להיות מאומתים לחצו על הכפתור";
+        verifyPreviewButton.textContent = verifyButtonLabel?.value || "Verify";
+
+        if (verifyPreviewImage) {
+          const imageUrl = verifyImageUrl?.value?.trim();
+          verifyPreviewImage.style.display = imageUrl ? "block" : "none";
+          if (imageUrl) verifyPreviewImage.src = imageUrl;
+        }
+      }
+
+      [verifyText, verifyButtonLabel, verifyAccentColor, verifyImageUrl].forEach((field) => {
+        field?.addEventListener("input", renderVerifyPreview);
+      });
+
       renderWelcomePreview();
+      renderVerifyPreview();
       wireTicketRemovers();
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
@@ -677,6 +707,19 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h2>אימות</h2>
           <label>רול Verify</label>
           ${select("verifiedRoleId", roleOptions, config.verifiedRoleId, "לא מוגדר")}
+          <label>טקסט הודעת Verify</label>
+          ${textArea("verifyText", config.verifyText, "כדי להיות מאומתים לחצו על הכפתור")}
+          <label>שם הכפתור</label>
+          ${textInput("verifyButtonLabel", config.verifyButtonLabel, "Verify")}
+          <label>צבע ההודעה</label>
+          ${colorInput("verifyAccentColor", config.verifyAccentColor || "#f17100")}
+          <label>תמונה בהודעת Verify</label>
+          ${textInput("verifyImageUrl", config.verifyImageUrl, "https://example.com/image.png")}
+          <div class="verify-preview" data-verify-preview>
+            <p data-verify-preview-text>${escapeHtml(config.verifyText || "כדי להיות מאומתים לחצו על הכפתור")}</p>
+            <img data-verify-preview-image src="${escapeHtml(config.verifyImageUrl || "")}" alt="תמונת Verify">
+            <span class="verify-preview-button" data-verify-preview-button>${escapeHtml(config.verifyButtonLabel || "Verify")}</span>
+          </div>
         </div>
 
         <div id="welcome" class="panel-section card">
@@ -735,6 +778,10 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
     ticketTypes: parseTicketTypes(req.body),
     staffRoleIds: parseIds(req.body.staffRoleIds),
     verifiedRoleId: req.body.verifiedRoleId.trim(),
+    verifyText: req.body.verifyText.trim(),
+    verifyButtonLabel: req.body.verifyButtonLabel.trim(),
+    verifyAccentColor: req.body.verifyAccentColor.trim(),
+    verifyImageUrl: req.body.verifyImageUrl.trim(),
     welcomeChannelId: req.body.welcomeChannelId.trim(),
     welcomeTitle: req.body.welcomeTitle.trim(),
     welcomeMessage: req.body.welcomeMessage.trim(),
