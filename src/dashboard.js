@@ -20,6 +20,7 @@ const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 app.use(express.urlencoded({ extended: true }));
+app.use("/assets", express.static("public"));
 
 function parseIds(value) {
   if (Array.isArray(value)) {
@@ -198,7 +199,7 @@ function layout(title, body) {
     body { margin: 0; font-family: Arial, sans-serif; background: #111318; color: #f4f6fb; }
     header { padding: 16px 24px; background: #181b22; border-bottom: 1px solid #2a2f3a; }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-mark { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: #7c3aed; color: #fff; font-weight: 800; }
+    .brand-mark { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; border: 1px solid #7c3aed; background: #0f1117; }
     .brand-name { display: block; font-size: 20px; font-weight: 800; color: #fff; }
     .brand-sub { display: block; color: #94a3b8; font-size: 12px; margin-top: 2px; }
     main { max-width: 980px; margin: 0 auto; padding: 24px; }
@@ -239,7 +240,7 @@ function layout(title, body) {
 <body>
   <header>
     <div class="brand">
-      <span class="brand-mark">לחם</span>
+      <img class="brand-mark" src="/assets/bot-logo.jpg" alt="בוט לחם">
       <span>
         <span class="brand-name">בוט לחם</span>
         <span class="brand-sub">דאשבורד ניהול דיסקורד</span>
