@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
+const multer = require("multer");
 const {
   ActionRowBuilder,
   ButtonBuilder,
@@ -26,6 +27,7 @@ const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
 const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
+const UPLOAD_DIR = path.join(__dirname, "..", "public", "uploads");
 const VERIFY_BUTTON_ID = "verify_member";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const TICKET_PANEL_IMAGE_PATH = path.join(
@@ -37,6 +39,28 @@ const TICKET_PANEL_IMAGE_NAME = "tickets-banner.png";
 
 const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+    filename: (req, file, cb) => {
+      const extension = path.extname(file.originalname || "").toLowerCase() || ".png";
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${extension}`);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    cb(null, file.mimetype?.startsWith("image/"));
+  },
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
+
+const imageUpload = upload.fields([
+  { name: "verifyImageFile", maxCount: 1 },
+  { name: "welcomeImageFile", maxCount: 1 },
+  { name: "giveawayImageFile", maxCount: 1 },
+]);
 
 app.use(express.urlencoded({ extended: true }));
 app.use("/assets", express.static("public"));
@@ -231,7 +255,17 @@ function pickGiveawayWinners(participants, winnerCount, previousWinnerIds = []) 
   return winners;
 }
 
-function buildGuildConfigFromBody(body) {
+function trimField(value) {
+  return String(value || "").trim();
+}
+
+function uploadedImageUrl(files, fieldName, fallbackValue) {
+  const uploadedFile = files?.[fieldName]?.[0];
+  if (!uploadedFile) return trimField(fallbackValue);
+  return `${BASE_URL}/assets/uploads/${uploadedFile.filename}`;
+}
+
+function buildGuildConfigFromBody(body, files = {}) {
   return {
     features: {
       verify: Boolean(body.featureVerify),
@@ -241,33 +275,33 @@ function buildGuildConfigFromBody(body) {
       editBattles: Boolean(body.featureEditBattles),
       giveaways: Boolean(body.featureGiveaways),
     },
-    ticketCategoryId: body.ticketCategoryId.trim(),
-    ticketOpenRoleId: body.ticketOpenRoleId.trim(),
-    ticketPanelChannelId: body.ticketPanelChannelId.trim(),
-    ticketPanelTitle: body.ticketPanelTitle.trim(),
-    ticketPanelDescription: body.ticketPanelDescription.trim(),
+    ticketCategoryId: trimField(body.ticketCategoryId),
+    ticketOpenRoleId: trimField(body.ticketOpenRoleId),
+    ticketPanelChannelId: trimField(body.ticketPanelChannelId),
+    ticketPanelTitle: trimField(body.ticketPanelTitle),
+    ticketPanelDescription: trimField(body.ticketPanelDescription),
     ticketNameMode: body.ticketNameMode || "number",
-    ticketTranscriptChannelId: body.ticketTranscriptChannelId.trim(),
+    ticketTranscriptChannelId: trimField(body.ticketTranscriptChannelId),
     ticketTypes: parseTicketTypes(body),
     staffRoleIds: parseIds(body.staffRoleIds),
-    verifiedRoleId: body.verifiedRoleId.trim(),
-    verifyPanelChannelId: body.verifyPanelChannelId.trim(),
-    verifyText: body.verifyText.trim(),
-    verifyButtonLabel: body.verifyButtonLabel.trim(),
-    verifyAccentColor: body.verifyAccentColor.trim(),
-    verifyImageUrl: body.verifyImageUrl.trim(),
-    welcomeChannelId: body.welcomeChannelId.trim(),
-    welcomeTitle: body.welcomeTitle.trim(),
-    welcomeMessage: body.welcomeMessage.trim(),
-    welcomeColor: body.welcomeColor.trim(),
-    welcomeImageUrl: body.welcomeImageUrl.trim(),
-    editBattlePanelChannelId: body.editBattlePanelChannelId.trim(),
-    giveawayChannelId: body.giveawayChannelId.trim(),
-    giveawayPrize: body.giveawayPrize.trim(),
-    giveawayDescription: body.giveawayDescription.trim(),
+    verifiedRoleId: trimField(body.verifiedRoleId),
+    verifyPanelChannelId: trimField(body.verifyPanelChannelId),
+    verifyText: trimField(body.verifyText),
+    verifyButtonLabel: trimField(body.verifyButtonLabel),
+    verifyAccentColor: trimField(body.verifyAccentColor),
+    verifyImageUrl: uploadedImageUrl(files, "verifyImageFile", body.verifyImageUrl),
+    welcomeChannelId: trimField(body.welcomeChannelId),
+    welcomeTitle: trimField(body.welcomeTitle),
+    welcomeMessage: trimField(body.welcomeMessage),
+    welcomeColor: trimField(body.welcomeColor),
+    welcomeImageUrl: uploadedImageUrl(files, "welcomeImageFile", body.welcomeImageUrl),
+    editBattlePanelChannelId: trimField(body.editBattlePanelChannelId),
+    giveawayChannelId: trimField(body.giveawayChannelId),
+    giveawayPrize: trimField(body.giveawayPrize),
+    giveawayDescription: trimField(body.giveawayDescription),
     giveawayWinnerCount: Math.max(1, Number(body.giveawayWinnerCount || 1)),
     giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
-    giveawayImageUrl: body.giveawayImageUrl.trim(),
+    giveawayImageUrl: uploadedImageUrl(files, "giveawayImageFile", body.giveawayImageUrl),
   };
 }
 
@@ -315,6 +349,10 @@ function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
 
 function textInput(name, value, placeholder = "") {
   return `<input name="${name}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(placeholder)}">`;
+}
+
+function fileInput(name) {
+  return `<input type="file" name="${name}" accept="image/*">`;
 }
 
 function colorInput(name, value) {
@@ -913,7 +951,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   }));
 
   res.send(layout("Guild Settings", `
-    <form method="post" class="guild-shell">
+    <form method="post" class="guild-shell" enctype="multipart/form-data">
       <aside class="card side-nav">
         <a href="/">חזרה לשרתים</a>
         <h2 class="side-title">${escapeHtml(guild.name)}</h2>
@@ -1020,6 +1058,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${colorInput("verifyAccentColor", config.verifyAccentColor || "#f17100")}
           <label>תמונה בהודעת Verify</label>
           ${textInput("verifyImageUrl", config.verifyImageUrl, "https://example.com/image.png")}
+          <label>או העלאת תמונה מהמחשב</label>
+          ${fileInput("verifyImageFile")}
           <div class="verify-preview" data-verify-preview>
             <p data-verify-preview-text>${escapeHtml(config.verifyText || "כדי להיות מאומתים לחצו על הכפתור")}</p>
             <img data-verify-preview-image src="${escapeHtml(config.verifyImageUrl || "")}" alt="תמונת Verify">
@@ -1041,6 +1081,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${colorInput("welcomeColor", config.welcomeColor)}
           <label>תמונה בהודעת Welcome</label>
           ${textInput("welcomeImageUrl", config.welcomeImageUrl, "https://example.com/image.png")}
+          <label>או העלאת תמונה מהמחשב</label>
+          ${fileInput("welcomeImageFile")}
           <div class="welcome-preview" data-welcome-preview>
             <div>
               <h3 data-welcome-preview-title>${escapeHtml(config.welcomeTitle || "Welcome!")}</h3>
@@ -1071,6 +1113,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textInput("giveawayDurationMinutes", config.giveawayDurationMinutes, "60")}
           <label>תמונה להגרלה</label>
           ${textInput("giveawayImageUrl", config.giveawayImageUrl, "https://example.com/image.png")}
+          <label>או העלאת תמונה מהמחשב</label>
+          ${fileInput("giveawayImageFile")}
           <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-giveaway" formmethod="post">שלח Giveaway עכשיו</button>
 
           <h3>רירול לזוכה</h3>
@@ -1089,14 +1133,14 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   `, getSession(req)));
 });
 
-app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
-  setGuildConfig(req.params.guildId, buildGuildConfigFromBody(req.body));
+app.post("/guild/:guildId", requireAuth, requireGuildAdmin, imageUpload, (req, res) => {
+  setGuildConfig(req.params.guildId, buildGuildConfigFromBody(req.body, req.files));
   res.redirect(`/guild/${req.params.guildId}`);
 });
 
-app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, async (req, res) => {
+app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1113,9 +1157,9 @@ app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, as
   res.send(sendResultPage("נשלח", "הודעת הטיקטים נשלחה לחדר שבחרת.", guildId, "tickets"));
 });
 
-app.post("/guild/:guildId/send-verify-panel", requireAuth, requireGuildAdmin, async (req, res) => {
+app.post("/guild/:guildId/send-verify-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1129,9 +1173,9 @@ app.post("/guild/:guildId/send-verify-panel", requireAuth, requireGuildAdmin, as
   res.send(sendResultPage("נשלח", "הודעת Verify נשלחה לחדר שבחרת.", guildId, "verify"));
 });
 
-app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, async (req, res) => {
+app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1145,9 +1189,9 @@ app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, a
   res.send(sendResultPage("נשלח", "הודעת Welcome נשלחה לחדר שבחרת.", guildId, "welcome"));
 });
 
-app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, async (req, res) => {
+app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1181,9 +1225,9 @@ app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, async 
   res.send(sendResultPage("נשלח", "ה־Giveaway נשלח והבוט יבחר זוכים אוטומטית בזמן שהגדרת.", guildId, "giveaways"));
 });
 
-app.post("/guild/:guildId/reroll-giveaway", requireAuth, requireGuildAdmin, async (req, res) => {
+app.post("/guild/:guildId/reroll-giveaway", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
 
   const giveaway = getGiveaway(req.body.rerollGiveawayId);
   if (!giveaway || giveaway.guildId !== guildId || !giveaway.ended) {
