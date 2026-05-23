@@ -22,14 +22,18 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 app.use(express.urlencoded({ extended: true }));
 
 function parseIds(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
   return String(value || "")
     .split(/[\s,]+/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function checkbox(name, label, checked) {
-  return `<label class="check"><input type="checkbox" name="${name}" value="1" ${checked ? "checked" : ""}> ${label}</label>`;
+function checkbox(name, label, checked, value = "1") {
+  return `<label class="check"><input type="checkbox" name="${name}" value="${escapeHtml(value)}" ${checked ? "checked" : ""}> ${escapeHtml(label)}</label>`;
 }
 
 function escapeHtml(value) {
@@ -54,10 +58,9 @@ function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
 
 function multiSelect(name, items, selectedValues) {
   const selectedSet = new Set(selectedValues || []);
-  return `<select name="${name}" multiple size="${Math.min(Math.max(items.length, 4), 10)}">
-    ${items.map((item) => option(item.id, item.label, selectedSet.has(item.id))).join("")}
-  </select>
-  <p class="muted">אפשר לבחור כמה רולים עם Ctrl במקלדת.</p>`;
+  return `<div class="choice-list">
+    ${items.map((item) => checkbox(name, item.label, selectedSet.has(item.id), item.id)).join("") || "<p class=\"muted\">אין רולים לבחירה.</p>"}
+  </div>`;
 }
 
 function parseCookies(req) {
@@ -205,6 +208,7 @@ function layout(title, body) {
     .muted { color: #94a3b8; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
     .check { display: flex; align-items: center; margin: 10px 0; color: #f4f6fb; }
+    .choice-list { max-height: 260px; overflow: auto; padding: 8px 12px; border: 1px solid #374151; border-radius: 6px; background: #0f1117; }
   </style>
 </head>
 <body>
