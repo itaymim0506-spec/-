@@ -40,9 +40,6 @@ process.on("uncaughtException", (error) => {
 
 const VERIFY_BUTTON_ID = "verify_member";
 const HELP_CLAIM_BUTTON_ID = "claim_help";
-const CUSTOM_TICKET_OPEN_BUTTON_ID = "open_custom_ticket";
-const REPORT_TICKET_OPEN_BUTTON_ID = "open_player_report_ticket";
-const TECH_TICKET_OPEN_BUTTON_ID = "open_technical_help_ticket";
 const TICKET_CLAIM_BUTTON_ID = "claim_ticket";
 const TICKET_CLOSE_BUTTON_ID = "close_ticket";
 const TICKET_PANEL_IMAGE_PATH = path.join(
@@ -60,25 +57,6 @@ const EDIT_BATTLE_IMAGE_PATH = path.join(
 );
 const EDIT_BATTLE_IMAGE_NAME = "edit-battle.png";
 const VERIFY_IMAGE_URL = "https://cdn.discordapp.com/attachments/1484641087355359344/1501598281829060689/2f1a380c-89e9-46a0-9bd8-2657e4e631a3.png?ex=69fca7e0&is=69fb5660&hm=35ebdc5326ea02c23655ea26ae2819dc5c20aaea1dda0cdf704b96e140bc3e7e&";
-
-const TICKET_TYPES = {
-  report: {
-    buttonId: REPORT_TICKET_OPEN_BUTTON_ID,
-    buttonLabel: "טיקט לדיווח על שחקן",
-    channelPrefix: "report",
-    embedTitle: "טיקט לדיווח על שחקן",
-    panelDescription: "דיווח על שחקן שעבר על החוקים.",
-    intro: "תכתוב כאן את הדיווח שלך. צוות יענה לך בהקדם.",
-  },
-  tech: {
-    buttonId: TECH_TICKET_OPEN_BUTTON_ID,
-    buttonLabel: "עזרה טכנית",
-    channelPrefix: "tech",
-    embedTitle: "טיקט עזרה טכנית",
-    panelDescription: "בעיה טכנית, באג, או עזרה בהתחברות.",
-    intro: "תכתוב כאן מה הבעיה הטכנית שלך. צוות יענה לך בהקדם.",
-  },
-};
 
 const client = new Client({
   intents: [
@@ -113,13 +91,6 @@ function canOpenTicket(member) {
 function isFeatureEnabled(guildId, featureName) {
   const { features } = getGuildConfig(guildId);
   return features?.[featureName] !== false;
-}
-
-function isTicketTypeEnabled(features, ticketType) {
-  if (ticketType.custom) return features.tickets !== false;
-  if (ticketType === TICKET_TYPES.report) return features.reportTickets !== false;
-  if (ticketType === TICKET_TYPES.tech) return features.techTickets !== false;
-  return true;
 }
 
 function getValidCategoryId(guild, categoryId) {
@@ -173,13 +144,13 @@ async function createTicketChannel(guild, options) {
 }
 
 function getTicketOwnerId(channel) {
-  return channel.topic?.match(/^ticket:[a-z-]+:(\d+)/)?.[1]
+  return channel.topic?.match(/^ticket:[a-z0-9-]+:(\d+)/)?.[1]
     ?? channel.topic?.match(/^player-report-ticket:(\d+)/)?.[1]
     ?? null;
 }
 
 function getTicketClaimedUserId(channel) {
-  return channel.topic?.match(/^ticket:[a-z-]+:\d+:claimed:(\d+)/)?.[1] ?? null;
+  return channel.topic?.match(/^ticket:[a-z0-9-]+:\d+(?::number:\d+)?:claimed:(\d+)/)?.[1] ?? null;
 }
 
 function getEditBattleUserIds(channel) {
@@ -216,21 +187,50 @@ async function scheduleChannelClose(channel, reason) {
   }, 5000);
 }
 
-function getCustomTicketType(guildId) {
+function slug(value, fallback = "ticket") {
+  const cleaned = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  return cleaned || fallback;
+}
+
+function getTicketTypes(guildId) {
   const config = getGuildConfig(guildId);
-  return {
-    custom: true,
-    buttonId: CUSTOM_TICKET_OPEN_BUTTON_ID,
-    buttonLabel: config.ticketButtonLabel || "פתח טיקט",
-    channelPrefix: config.ticketChannelPrefix || "ticket",
-    embedTitle: config.ticketEmbedTitle || "טיקט חדש",
-    intro: config.ticketIntro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
-  };
+  const ticketTypes = Array.isArray(config.ticketTypes) && config.ticketTypes.length
+    ? config.ticketTypes
+    : [{
+      id: "general",
+      buttonLabel: config.ticketButtonLabel || "פתח טיקט",
+      channelPrefix: config.ticketChannelPrefix || "ticket",
+      embedTitle: config.ticketEmbedTitle || "טיקט חדש",
+      intro: config.ticketIntro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+    }];
+
+  return ticketTypes
+    .map((ticketType, index) => {
+      const id = slug(ticketType.id || ticketType.buttonLabel || `ticket-${index + 1}`, `ticket-${index + 1}`);
+      return {
+        id,
+        buttonId: `open_ticket_${id}`,
+        buttonLabel: ticketType.buttonLabel || `טיקט ${index + 1}`,
+        channelPrefix: slug(ticketType.channelPrefix || ticketType.buttonLabel || id, "ticket"),
+        embedTitle: ticketType.embedTitle || ticketType.buttonLabel || "טיקט חדש",
+        intro: ticketType.intro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+      };
+    });
 }
 
 function getTicketTypeByButton(buttonId, guildId) {
-  if (buttonId === CUSTOM_TICKET_OPEN_BUTTON_ID) return getCustomTicketType(guildId);
-  return Object.values(TICKET_TYPES).find((ticketType) => ticketType.buttonId === buttonId);
+  return getTicketTypes(guildId).find((ticketType) => ticketType.buttonId === buttonId);
+}
+
+function buildTicketChannelName(config, ticketType, user, ticketNumber) {
+  if (config.ticketNameMode === "user") return `ticket-${slug(user.username || user.id, user.id)}`;
+  if (config.ticketNameMode === "reason") return `ticket-${slug(ticketType.buttonLabel || ticketType.channelPrefix, ticketType.channelPrefix)}`;
+  return `ticket-${String(ticketNumber).padStart(4, "0")}`;
 }
 
 function buildHelpRequest(member, textChannel, voiceChannel) {
@@ -255,28 +255,42 @@ function buildHelpRequest(member, textChannel, voiceChannel) {
   return { embeds: [embed], components: [row] };
 }
 
-function buildTicketPanel(guildId) {
+function buildTicketPanelMessages(guildId) {
   const config = getGuildConfig(guildId);
-  const ticketType = getCustomTicketType(guildId);
-  const embed = new EmbedBuilder()
-    .setColor(0x8b2cff)
-    .setTitle(config.ticketPanelTitle || "פתיחת טיקטים")
-    .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
-
-  const files = [];
-  if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
-    embed.setImage(`attachment://${TICKET_PANEL_IMAGE_NAME}`);
-    files.push({ attachment: TICKET_PANEL_IMAGE_PATH, name: TICKET_PANEL_IMAGE_NAME });
+  const ticketTypes = getTicketTypes(guildId);
+  const chunks = [];
+  for (let index = 0; index < ticketTypes.length; index += 25) {
+    chunks.push(ticketTypes.slice(index, index + 25));
   }
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(ticketType.buttonId)
-      .setLabel(ticketType.buttonLabel)
-      .setStyle(ButtonStyle.Primary),
-  );
+  return chunks.map((chunk, chunkIndex) => {
+    const embed = new EmbedBuilder()
+      .setColor(0x8b2cff)
+      .setTitle(chunks.length > 1 ? `${config.ticketPanelTitle || "פתיחת טיקטים"} ${chunkIndex + 1}` : (config.ticketPanelTitle || "פתיחת טיקטים"))
+      .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
 
-  return { embeds: [embed], components: [row], files };
+    const files = [];
+    if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
+      embed.setImage(`attachment://${TICKET_PANEL_IMAGE_NAME}`);
+      files.push({ attachment: TICKET_PANEL_IMAGE_PATH, name: TICKET_PANEL_IMAGE_NAME });
+    }
+
+    const rows = [];
+    for (let index = 0; index < chunk.length; index += 5) {
+      rows.push(new ActionRowBuilder().addComponents(
+        chunk.slice(index, index + 5).map((ticketType) => new ButtonBuilder()
+          .setCustomId(ticketType.buttonId)
+          .setLabel(ticketType.buttonLabel)
+          .setStyle(ButtonStyle.Primary)),
+      ));
+    }
+
+    return { embeds: [embed], components: rows, files };
+  });
+}
+
+function buildTicketPanel(guildId) {
+  return buildTicketPanelMessages(guildId)[0];
 }
 
 function buildVerifyPanel() {
@@ -323,8 +337,8 @@ function buildTicketActionRow({ claimedBy } = {}) {
 function buildEditBattlePanel() {
   const embed = new EmbedBuilder()
     .setColor(0x8b2cff)
-    .setTitle("קרב אדיטים")
-    .setDescription("לחץ על הכפתור כדי להצטרף לקרב. כשיהיו לפחות שני משתתפים, הבוט ישדך שניים רנדומלית ויפתח להם חדר פרטי.");
+    .setTitle("חדר קרב")
+    .setDescription("לחץ על הכפתור כדי להצטרף לחדר קרב. כשיהיו לפחות שני משתתפים, הבוט ישדך שניים רנדומלית ויפתח להם חדר פרטי.");
 
   const files = [];
   if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
@@ -335,7 +349,7 @@ function buildEditBattlePanel() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
-      .setLabel("הזמנת קרב אדיטים")
+      .setLabel("פתיחת חדר קרב")
       .setStyle(ButtonStyle.Primary),
   );
 
@@ -352,7 +366,9 @@ async function sendFreshPanels(guild, channel) {
   }
 
   if (features.tickets) {
-    await channel.send(buildTicketPanel(guild.id));
+    for (const panel of buildTicketPanelMessages(guild.id)) {
+      await channel.send(panel);
+    }
     sentPanels.push("Tickets");
   }
 
@@ -379,8 +395,8 @@ function pickRandomQueuedUserId() {
   return editBattleQueue.splice(index, 1)[0];
 }
 
-function buildTicketTopic(ticketType, userId) {
-  return `ticket:${ticketType.channelPrefix}:${userId}`;
+function buildTicketTopic(ticketType, userId, ticketNumber) {
+  return `ticket:${ticketType.channelPrefix}:${userId}:number:${ticketNumber}`;
 }
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -480,8 +496,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    await interaction.channel.send(buildTicketPanel(interaction.guild.id));
+    for (const panel of buildTicketPanelMessages(interaction.guild.id)) {
+      await interaction.channel.send(panel);
+    }
     await interaction.reply({ content: "Ticket panel posted.", flags: 64 });
+    return;
+  }
+
+  if (interaction.isChatInputCommand() && interaction.commandName === "setup-edit-battle") {
+    if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
+      await interaction.reply({ content: "חדר קרב כבוי בשרת הזה.", flags: 64 });
+      return;
+    }
+
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({ content: "You need Manage Server permission to use this.", flags: 64 });
+      return;
+    }
+
+    await interaction.channel.send(buildEditBattlePanel());
+    await interaction.reply({ content: "Battle room panel posted.", flags: 64 });
     return;
   }
 
@@ -504,12 +538,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (interaction.isButton() && interaction.customId === EDIT_BATTLE_JOIN_BUTTON_ID) {
     if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
-      await interaction.reply({ content: "קרב אדיטים כבוי בשרת הזה.", flags: 64 });
+      await interaction.reply({ content: "חדר קרב כבוי בשרת הזה.", flags: 64 });
       return;
     }
 
     if (editBattleQueue.includes(interaction.user.id)) {
-      await interaction.reply({ content: "אתה כבר בתור לקרב אדיטים.", flags: 64 });
+      await interaction.reply({ content: "אתה כבר בתור לחדר קרב.", flags: 64 });
       return;
     }
 
@@ -553,7 +587,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     ];
 
     const battleChannel = await interaction.guild.channels.create({
-      name: `edit-battle-${firstUserId.slice(-4)}-${secondUserId.slice(-4)}`,
+      name: `battle-room-${firstUserId.slice(-4)}-${secondUserId.slice(-4)}`,
       type: ChannelType.GuildText,
       parent: interaction.channel.parentId,
       topic: `edit-battle:${firstUserId}:${secondUserId}`,
@@ -572,7 +606,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const embed = new EmbedBuilder()
       .setColor(0x8b2cff)
-      .setTitle("קרב אדיטים נפתח")
+      .setTitle("חדר קרב נפתח")
       .setDescription(`<@${firstUserId}> נגד <@${secondUserId}>\nרק שניכם יכולים לראות ולכתוב בחדר הזה.\n\nכדי לסגור את הטיקט אוטומטית, גם אתה וגם איש הצוות שלקח את הטיקט צריכים לכתוב \`!סיימתי\`.`)
       .setTimestamp();
 
@@ -590,10 +624,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   const ticketType = interaction.isButton() ? getTicketTypeByButton(interaction.customId, interaction.guild.id) : null;
   if (ticketType) {
-    const { features, ticketCategoryId, staffRoleIds } = getGuildConfig(interaction.guild.id);
+    const config = getGuildConfig(interaction.guild.id);
+    const { features, ticketCategoryId, staffRoleIds } = config;
     const validStaffRoleIds = getValidRoleIds(interaction.guild, staffRoleIds);
 
-    if (!features.tickets || !isTicketTypeEnabled(features, ticketType)) {
+    if (!features.tickets) {
       await interaction.reply({ content: "סוג הטיקט הזה כבוי כרגע.", flags: 64 });
       return;
     }
@@ -603,16 +638,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         content: "רק מי שיש לו את הרול המתאים יכול לפתוח טיקט.",
         flags: 64,
       });
-      return;
-    }
-
-    const ticketTopic = buildTicketTopic(ticketType, interaction.user.id);
-    const existingTicket = interaction.guild.channels.cache.find((channel) => (
-      channel.guild.id === interaction.guild.id && channel.topic === ticketTopic
-    ));
-
-    if (existingTicket) {
-      await interaction.reply({ content: `כבר יש לך טיקט פתוח: ${existingTicket}`, flags: 64 });
       return;
     }
 
@@ -630,6 +655,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     });
 
     if (!parentCategoryId) return;
+
+    const ticketNumber = Number(config.ticketCounter || 0) + 1;
+    setGuildConfig(interaction.guild.id, { ticketCounter: ticketNumber });
+    const ticketTopic = buildTicketTopic(ticketType, interaction.user.id, ticketNumber);
 
     const permissionOverwrites = [
       { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -661,7 +690,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     ];
 
     const ticketChannel = await createTicketChannel(interaction.guild, {
-      name: `${ticketType.channelPrefix}-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90),
+      name: buildTicketChannelName(config, ticketType, interaction.user, ticketNumber).slice(0, 90),
       type: ChannelType.GuildText,
       parent: parentCategoryId,
       topic: ticketTopic,

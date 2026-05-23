@@ -33,6 +33,40 @@ function parseIds(value) {
     .filter(Boolean);
 }
 
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined) return [];
+  return [value];
+}
+
+function slugForConfig(value, fallback = "ticket") {
+  const cleaned = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  return cleaned || fallback;
+}
+
+function parseTicketTypes(body) {
+  const ids = asArray(body.ticketTypeId);
+  const labels = asArray(body.ticketTypeButtonLabel);
+  const prefixes = asArray(body.ticketTypeChannelPrefix);
+  const titles = asArray(body.ticketTypeEmbedTitle);
+  const intros = asArray(body.ticketTypeIntro);
+
+  const ticketTypes = labels.map((label, index) => ({
+    id: slugForConfig(ids[index] || label || `ticket-${index + 1}`, `ticket-${index + 1}`),
+    buttonLabel: String(label || "").trim(),
+    channelPrefix: slugForConfig(prefixes[index] || label || `ticket-${index + 1}`, "ticket"),
+    embedTitle: String(titles[index] || label || "טיקט חדש").trim(),
+    intro: String(intros[index] || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.").trim(),
+  })).filter((ticketType) => ticketType.buttonLabel);
+
+  return ticketTypes.length ? ticketTypes : DEFAULT_CONFIG.ticketTypes;
+}
+
 function checkbox(name, label, checked, value = "1") {
   return `<label class="check"><input type="checkbox" name="${name}" value="${escapeHtml(value)}" ${checked ? "checked" : ""}> ${escapeHtml(label)}</label>`;
 }
@@ -70,6 +104,24 @@ function multiSelect(name, items, selectedValues) {
   return `<div class="choice-list">
     ${items.map((item) => checkbox(name, item.label, selectedSet.has(item.id), item.id)).join("") || "<p class=\"muted\">אין רולים לבחירה.</p>"}
   </div>`;
+}
+
+function renderTicketTypeRows(ticketTypes) {
+  return (ticketTypes || DEFAULT_CONFIG.ticketTypes).map((ticketType, index) => `
+    <div class="ticket-type-row">
+      <h4>סוג טיקט ${index + 1}</h4>
+      <input type="hidden" name="ticketTypeId" value="${escapeHtml(ticketType.id || `ticket-${index + 1}`)}">
+      <label>שם הכפתור</label>
+      ${textInput("ticketTypeButtonLabel", ticketType.buttonLabel, "פתח טיקט")}
+      <label>תחילת שם החדר</label>
+      ${textInput("ticketTypeChannelPrefix", ticketType.channelPrefix, "ticket")}
+      <label>כותרת בתוך הטיקט</label>
+      ${textInput("ticketTypeEmbedTitle", ticketType.embedTitle, "טיקט חדש")}
+      <label>הודעה בתוך הטיקט</label>
+      ${textArea("ticketTypeIntro", ticketType.intro, "תכתוב כאן מה יופיע למשתמש בתוך הטיקט.")}
+      <button type="button" class="button secondary" data-remove-ticket-type>מחק סוג טיקט</button>
+    </div>
+  `).join("");
 }
 
 function parseCookies(req) {
@@ -217,6 +269,7 @@ function layout(title, body) {
     input[type="checkbox"] { width: auto; margin-left: 8px; }
     textarea { min-height: 120px; direction: ltr; }
     button, .button { display: inline-block; margin-top: 18px; padding: 11px 16px; border: 0; border-radius: 6px; background: #7c3aed; color: white; cursor: pointer; }
+    .button.secondary { background: #374151; }
     .card { background: #181b22; border: 1px solid #2a2f3a; border-radius: 8px; padding: 18px; margin-bottom: 18px; }
     .muted { color: #94a3b8; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
@@ -238,6 +291,8 @@ function layout(title, body) {
     .stat { padding: 14px; background: #111318; border: 1px solid #2a2f3a; border-radius: 8px; }
     .stat strong { display: block; font-size: 20px; margin-bottom: 4px; }
     .save-row { position: sticky; bottom: 0; margin-top: 18px; padding: 12px 0; background: #111318; border-top: 1px solid #2a2f3a; }
+    .ticket-type-row { padding: 14px; margin: 12px 0; border: 1px solid #374151; border-radius: 8px; background: #111318; }
+    .ticket-type-row h4 { margin: 0 0 10px; }
     @media (max-width: 780px) {
       .guild-shell { grid-template-columns: 1fr; }
       .side-nav { position: static; }
@@ -272,6 +327,27 @@ function layout(title, body) {
         link.addEventListener("click", () => showSection(link.getAttribute("href").slice(1)));
       });
 
+      const ticketTypes = document.querySelector("[data-ticket-types]");
+      const addTicketType = document.querySelector("[data-add-ticket-type]");
+      const template = document.querySelector("#ticket-type-template");
+
+      function wireTicketRemovers() {
+        document.querySelectorAll("[data-remove-ticket-type]").forEach((button) => {
+          button.onclick = () => {
+            if (document.querySelectorAll(".ticket-type-row").length > 1) {
+              button.closest(".ticket-type-row").remove();
+            }
+          };
+        });
+      }
+
+      addTicketType?.addEventListener("click", () => {
+        if (!ticketTypes || !template) return;
+        ticketTypes.insertAdjacentHTML("beforeend", template.innerHTML);
+        wireTicketRemovers();
+      });
+
+      wireTicketRemovers();
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
   </script>
@@ -473,7 +549,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <a class="nav-link" href="#verify">אימות</a>
         <a class="nav-link" href="#welcome">ברוכים הבאים</a>
         <a class="nav-link" href="#help">עזרה</a>
-        <a class="nav-link" href="#edit-battles">קרב אדיטים</a>
+        <a class="nav-link" href="#edit-battles">חדר קרב</a>
         <div class="save-row">
           <button type="submit">שמור הגדרות</button>
         </div>
@@ -499,7 +575,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureWelcome", "Welcome", config.features.welcome)}
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
-          ${checkbox("featureEditBattles", "קרב אדיטים", config.features.editBattles)}
+          ${checkbox("featureEditBattles", "חדר קרב", config.features.editBattles)}
         </div>
 
         <div id="tickets" class="panel-section card">
@@ -509,16 +585,34 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textInput("ticketPanelTitle", config.ticketPanelTitle, "פתיחת טיקטים")}
           <label>טקסט ההודעה</label>
           ${textArea("ticketPanelDescription", config.ticketPanelDescription, "כתוב כאן מה המשתמשים צריכים לדעת לפני פתיחת טיקט.")}
-          <label>שם הכפתור</label>
-          ${textInput("ticketButtonLabel", config.ticketButtonLabel, "פתח טיקט")}
+          <label>איך לקרוא לחדר שנפתח</label>
+          ${select("ticketNameMode", [
+            { id: "number", label: "לפי מספר הטיקט" },
+            { id: "user", label: "לפי שם המשתמש" },
+            { id: "reason", label: "לפי הנושא שעליו פתחו" },
+          ], config.ticketNameMode || "number", "לפי מספר הטיקט")}
 
-          <h3>הטיקט שנפתח</h3>
-          <label>נושא / כותרת הטיקט</label>
-          ${textInput("ticketEmbedTitle", config.ticketEmbedTitle, "טיקט חדש")}
-          <label>הודעה בתוך הטיקט</label>
-          ${textArea("ticketIntro", config.ticketIntro, "כתוב כאן מה יופיע למשתמש בתוך הטיקט.")}
-          <label>תחילת שם החדר</label>
-          ${textInput("ticketChannelPrefix", config.ticketChannelPrefix, "ticket")}
+          <h3>סוגי טיקטים וכפתורים</h3>
+          <p class="muted">אפשר להוסיף כמה סוגי טיקטים שרוצים. כל שורה כאן הופכת לכפתור בהודעת הטיקטים.</p>
+          <div data-ticket-types>
+            ${renderTicketTypeRows(config.ticketTypes || DEFAULT_CONFIG.ticketTypes)}
+          </div>
+          <button type="button" class="button secondary" data-add-ticket-type>הוסף סוג טיקט</button>
+          <template id="ticket-type-template">
+            <div class="ticket-type-row">
+              <h4>סוג טיקט חדש</h4>
+              <input type="hidden" name="ticketTypeId" value="">
+              <label>שם הכפתור</label>
+              ${textInput("ticketTypeButtonLabel", "", "פתח טיקט")}
+              <label>תחילת שם החדר</label>
+              ${textInput("ticketTypeChannelPrefix", "", "ticket")}
+              <label>כותרת בתוך הטיקט</label>
+              ${textInput("ticketTypeEmbedTitle", "", "טיקט חדש")}
+              <label>הודעה בתוך הטיקט</label>
+              ${textArea("ticketTypeIntro", "", "תכתוב כאן מה יופיע למשתמש בתוך הטיקט.")}
+              <button type="button" class="button secondary" data-remove-ticket-type>מחק סוג טיקט</button>
+            </div>
+          </template>
 
           <h3>הרשאות ומיקום</h3>
           <label>קטגוריית טיקטים</label>
@@ -547,8 +641,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         </div>
 
         <div id="edit-battles" class="panel-section card">
-          <h2>קרב אדיטים</h2>
-          <label>חדר פאנל קרב אדיטים</label>
+          <h2>חדר קרב</h2>
+          <label>חדר פאנל חדר קרב</label>
           ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
         </div>
       </section>
@@ -569,10 +663,8 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
     ticketOpenRoleId: req.body.ticketOpenRoleId.trim(),
     ticketPanelTitle: req.body.ticketPanelTitle.trim(),
     ticketPanelDescription: req.body.ticketPanelDescription.trim(),
-    ticketButtonLabel: req.body.ticketButtonLabel.trim(),
-    ticketChannelPrefix: req.body.ticketChannelPrefix.trim(),
-    ticketEmbedTitle: req.body.ticketEmbedTitle.trim(),
-    ticketIntro: req.body.ticketIntro.trim(),
+    ticketNameMode: req.body.ticketNameMode || "number",
+    ticketTypes: parseTicketTypes(req.body),
     staffRoleIds: parseIds(req.body.staffRoleIds),
     verifiedRoleId: req.body.verifiedRoleId.trim(),
     welcomeChannelId: req.body.welcomeChannelId.trim(),

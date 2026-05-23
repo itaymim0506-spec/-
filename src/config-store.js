@@ -10,18 +10,23 @@ const DEFAULT_CONFIG = {
     welcome: true,
     help: true,
     tickets: true,
-    reportTickets: true,
-    techTickets: true,
     editBattles: true,
   },
   ticketCategoryId: "1498364707747401941",
   ticketOpenRoleId: "1498364648226033664",
   ticketPanelTitle: "פתיחת טיקטים",
   ticketPanelDescription: "לחצו על הכפתור כדי לפתוח טיקט לצוות.",
-  ticketButtonLabel: "פתח טיקט",
-  ticketChannelPrefix: "ticket",
-  ticketEmbedTitle: "טיקט חדש",
-  ticketIntro: "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+  ticketNameMode: "number",
+  ticketCounter: 0,
+  ticketTypes: [
+    {
+      id: "general",
+      buttonLabel: "פתח טיקט",
+      channelPrefix: "ticket",
+      embedTitle: "טיקט חדש",
+      intro: "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+    },
+  ],
   staffRoleIds: [
     "1498364664902451220",
     "1498364671386718340",
@@ -57,6 +62,9 @@ function writeAllConfigs(configs) {
 function getGuildConfig(guildId) {
   const configs = readAllConfigs();
   const savedConfig = configs[guildId] || {};
+  const ticketTypes = Array.isArray(savedConfig.ticketTypes) && savedConfig.ticketTypes.length
+    ? savedConfig.ticketTypes
+    : DEFAULT_CONFIG.ticketTypes;
   return {
     ...DEFAULT_CONFIG,
     ...savedConfig,
@@ -64,6 +72,7 @@ function getGuildConfig(guildId) {
       ...DEFAULT_CONFIG.features,
       ...(savedConfig.features || {}),
     },
+    ticketTypes,
   };
 }
 

@@ -13,6 +13,10 @@ function buildSlashCommands() {
       .setName("setup-ticket")
       .setDescription("Post the player report ticket button.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    new SlashCommandBuilder()
+      .setName("setup-edit-battle")
+      .setDescription("Post the battle room button.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   ].map((command) => command.toJSON());
 }
 
