@@ -491,13 +491,14 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureWelcome", "Welcome", config.features.welcome)}
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
-          ${checkbox("featureReportTickets", "טיקט לדיווח על שחקן", config.features.reportTickets)}
-          ${checkbox("featureTechTickets", "עזרה טכנית", config.features.techTickets)}
           ${checkbox("featureEditBattles", "קרב אדיטים", config.features.editBattles)}
         </div>
 
         <div id="tickets" class="panel-section card">
           <h2>טיקטים</h2>
+          <h3>סוגי טיקטים</h3>
+          ${checkbox("featureReportTickets", "דיווח על שחקן", config.features.reportTickets)}
+          ${checkbox("featureTechTickets", "עזרה טכנית", config.features.techTickets)}
           <label>קטגוריית טיקטים</label>
           ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
           <label>רול שיכול לפתוח טיקט</label>
