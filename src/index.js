@@ -40,6 +40,7 @@ process.on("uncaughtException", (error) => {
 
 const VERIFY_BUTTON_ID = "verify_member";
 const HELP_CLAIM_BUTTON_ID = "claim_help";
+const CUSTOM_TICKET_OPEN_BUTTON_ID = "open_custom_ticket";
 const REPORT_TICKET_OPEN_BUTTON_ID = "open_player_report_ticket";
 const TECH_TICKET_OPEN_BUTTON_ID = "open_technical_help_ticket";
 const TICKET_CLAIM_BUTTON_ID = "claim_ticket";
@@ -115,6 +116,7 @@ function isFeatureEnabled(guildId, featureName) {
 }
 
 function isTicketTypeEnabled(features, ticketType) {
+  if (ticketType.custom) return features.tickets !== false;
   if (ticketType === TICKET_TYPES.report) return features.reportTickets !== false;
   if (ticketType === TICKET_TYPES.tech) return features.techTickets !== false;
   return true;
@@ -214,7 +216,20 @@ async function scheduleChannelClose(channel, reason) {
   }, 5000);
 }
 
-function getTicketTypeByButton(buttonId) {
+function getCustomTicketType(guildId) {
+  const config = getGuildConfig(guildId);
+  return {
+    custom: true,
+    buttonId: CUSTOM_TICKET_OPEN_BUTTON_ID,
+    buttonLabel: config.ticketButtonLabel || "פתח טיקט",
+    channelPrefix: config.ticketChannelPrefix || "ticket",
+    embedTitle: config.ticketEmbedTitle || "טיקט חדש",
+    intro: config.ticketIntro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+  };
+}
+
+function getTicketTypeByButton(buttonId, guildId) {
+  if (buttonId === CUSTOM_TICKET_OPEN_BUTTON_ID) return getCustomTicketType(guildId);
   return Object.values(TICKET_TYPES).find((ticketType) => ticketType.buttonId === buttonId);
 }
 
@@ -240,15 +255,13 @@ function buildHelpRequest(member, textChannel, voiceChannel) {
   return { embeds: [embed], components: [row] };
 }
 
-function buildTicketPanel() {
+function buildTicketPanel(guildId) {
+  const config = getGuildConfig(guildId);
+  const ticketType = getCustomTicketType(guildId);
   const embed = new EmbedBuilder()
     .setColor(0x8b2cff)
-    .setTitle("פתיחת טיקטים")
-    .setDescription("בחר את סוג הטיקט שאתה רוצה לפתוח.")
-    .addFields(
-      { name: TICKET_TYPES.report.buttonLabel, value: TICKET_TYPES.report.panelDescription },
-      { name: TICKET_TYPES.tech.buttonLabel, value: TICKET_TYPES.tech.panelDescription },
-    );
+    .setTitle(config.ticketPanelTitle || "פתיחת טיקטים")
+    .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
 
   const files = [];
   if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
@@ -258,12 +271,8 @@ function buildTicketPanel() {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(TICKET_TYPES.report.buttonId)
-      .setLabel(TICKET_TYPES.report.buttonLabel)
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(TICKET_TYPES.tech.buttonId)
-      .setLabel(TICKET_TYPES.tech.buttonLabel)
+      .setCustomId(ticketType.buttonId)
+      .setLabel(ticketType.buttonLabel)
       .setStyle(ButtonStyle.Primary),
   );
 
@@ -343,7 +352,7 @@ async function sendFreshPanels(guild, channel) {
   }
 
   if (features.tickets) {
-    await channel.send(buildTicketPanel());
+    await channel.send(buildTicketPanel(guild.id));
     sentPanels.push("Tickets");
   }
 
@@ -471,7 +480,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    await interaction.channel.send(buildTicketPanel());
+    await interaction.channel.send(buildTicketPanel(interaction.guild.id));
     await interaction.reply({ content: "Ticket panel posted.", flags: 64 });
     return;
   }
@@ -579,7 +588,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  const ticketType = interaction.isButton() ? getTicketTypeByButton(interaction.customId) : null;
+  const ticketType = interaction.isButton() ? getTicketTypeByButton(interaction.customId, interaction.guild.id) : null;
   if (ticketType) {
     const { features, ticketCategoryId, staffRoleIds } = getGuildConfig(interaction.guild.id);
     const validStaffRoleIds = getValidRoleIds(interaction.guild, staffRoleIds);

@@ -16,6 +16,12 @@ const DEFAULT_CONFIG = {
   },
   ticketCategoryId: "1498364707747401941",
   ticketOpenRoleId: "1498364648226033664",
+  ticketPanelTitle: "פתיחת טיקטים",
+  ticketPanelDescription: "לחצו על הכפתור כדי לפתוח טיקט לצוות.",
+  ticketButtonLabel: "פתח טיקט",
+  ticketChannelPrefix: "ticket",
+  ticketEmbedTitle: "טיקט חדש",
+  ticketIntro: "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
   staffRoleIds: [
     "1498364664902451220",
     "1498364671386718340",

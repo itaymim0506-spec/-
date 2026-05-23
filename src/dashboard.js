@@ -57,6 +57,14 @@ function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
   </select>`;
 }
 
+function textInput(name, value, placeholder = "") {
+  return `<input name="${name}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(placeholder)}">`;
+}
+
+function textArea(name, value, placeholder = "") {
+  return `<textarea name="${name}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value || "")}</textarea>`;
+}
+
 function multiSelect(name, items, selectedValues) {
   const selectedSet = new Set(selectedValues || []);
   return `<div class="choice-list">
@@ -496,9 +504,23 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 
         <div id="tickets" class="panel-section card">
           <h2>טיקטים</h2>
-          <h3>סוגי טיקטים</h3>
-          ${checkbox("featureReportTickets", "דיווח על שחקן", config.features.reportTickets)}
-          ${checkbox("featureTechTickets", "עזרה טכנית", config.features.techTickets)}
+          <h3>ההודעה הראשית</h3>
+          <label>כותרת ההודעה</label>
+          ${textInput("ticketPanelTitle", config.ticketPanelTitle, "פתיחת טיקטים")}
+          <label>טקסט ההודעה</label>
+          ${textArea("ticketPanelDescription", config.ticketPanelDescription, "כתוב כאן מה המשתמשים צריכים לדעת לפני פתיחת טיקט.")}
+          <label>שם הכפתור</label>
+          ${textInput("ticketButtonLabel", config.ticketButtonLabel, "פתח טיקט")}
+
+          <h3>הטיקט שנפתח</h3>
+          <label>נושא / כותרת הטיקט</label>
+          ${textInput("ticketEmbedTitle", config.ticketEmbedTitle, "טיקט חדש")}
+          <label>הודעה בתוך הטיקט</label>
+          ${textArea("ticketIntro", config.ticketIntro, "כתוב כאן מה יופיע למשתמש בתוך הטיקט.")}
+          <label>תחילת שם החדר</label>
+          ${textInput("ticketChannelPrefix", config.ticketChannelPrefix, "ticket")}
+
+          <h3>הרשאות ומיקום</h3>
           <label>קטגוריית טיקטים</label>
           ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
           <label>רול שיכול לפתוח טיקט</label>
@@ -541,12 +563,16 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
       welcome: Boolean(req.body.featureWelcome),
       help: Boolean(req.body.featureHelp),
       tickets: Boolean(req.body.featureTickets),
-      reportTickets: Boolean(req.body.featureReportTickets),
-      techTickets: Boolean(req.body.featureTechTickets),
       editBattles: Boolean(req.body.featureEditBattles),
     },
     ticketCategoryId: req.body.ticketCategoryId.trim(),
     ticketOpenRoleId: req.body.ticketOpenRoleId.trim(),
+    ticketPanelTitle: req.body.ticketPanelTitle.trim(),
+    ticketPanelDescription: req.body.ticketPanelDescription.trim(),
+    ticketButtonLabel: req.body.ticketButtonLabel.trim(),
+    ticketChannelPrefix: req.body.ticketChannelPrefix.trim(),
+    ticketEmbedTitle: req.body.ticketEmbedTitle.trim(),
+    ticketIntro: req.body.ticketIntro.trim(),
     staffRoleIds: parseIds(req.body.staffRoleIds),
     verifiedRoleId: req.body.verifiedRoleId.trim(),
     welcomeChannelId: req.body.welcomeChannelId.trim(),
