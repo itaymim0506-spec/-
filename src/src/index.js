@@ -24,6 +24,7 @@ const { CLIENT_ID } = process.env;
 
 const { getGuildConfig, setGuildConfig } = require("./config-store");
 const { buildSlashCommands } = require("./slash-commands");
+const APP_VERSION = "tickets-auto-category-v2";
 
 if (!DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN in .env");
@@ -128,6 +129,11 @@ function getValidRoleIds(guild, roleIds) {
   return roleIds.filter((roleId) => guild.roles.cache.has(roleId));
 }
 
+async function botCanManageChannels(guild) {
+  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  return botMember?.permissions.has(PermissionFlagsBits.ManageChannels) ?? false;
+}
+
 async function getOrCreateTicketCategory(guild, configuredCategoryId) {
   const validCategoryId = getValidCategoryId(guild, configuredCategoryId);
   if (validCategoryId) return validCategoryId;
@@ -147,6 +153,21 @@ async function getOrCreateTicketCategory(guild, configuredCategoryId) {
 
   setGuildConfig(guild.id, { ticketCategoryId: category.id });
   return category.id;
+}
+
+async function createTicketChannel(guild, options) {
+  try {
+    return await guild.channels.create(options);
+  } catch (error) {
+    console.error("Ticket channel create with category failed:", error);
+
+    if (!options.parent) throw error;
+
+    return guild.channels.create({
+      ...options,
+      parent: null,
+    });
+  }
 }
 
 function getTicketOwnerId(channel) {
@@ -354,7 +375,7 @@ function buildTicketTopic(ticketType, userId) {
 }
 
 client.once(Events.ClientReady, (readyClient) => {
-  console.log(`Logged in as ${readyClient.user.tag}`);
+  console.log(`Logged in as ${readyClient.user.tag} (${APP_VERSION})`);
   syncSlashCommands().catch((error) => {
     console.error("Slash command sync failed:", error);
   });
@@ -588,6 +609,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     await interaction.deferReply({ flags: 64 });
 
+    if (!await botCanManageChannels(interaction.guild)) {
+      await interaction.editReply("אין לי הרשאת Manage Channels בשרת הזה. צריך להזמין אותי עם Administrator או לתת לי Manage Channels.");
+      return;
+    }
+
     const parentCategoryId = await getOrCreateTicketCategory(interaction.guild, ticketCategoryId).catch(async (error) => {
       console.error(error);
       await interaction.editReply("לא הצלחתי להכין קטגוריית Tickets. תבדוק שלבוט יש הרשאת Manage Channels בשרת הזה.");
@@ -625,7 +651,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       })),
     ];
 
-    const ticketChannel = await interaction.guild.channels.create({
+    const ticketChannel = await createTicketChannel(interaction.guild, {
       name: `${ticketType.channelPrefix}-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90),
       type: ChannelType.GuildText,
       parent: parentCategoryId,
@@ -633,7 +659,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       permissionOverwrites,
     }).catch(async (error) => {
       console.error(error);
-      await interaction.editReply("לא הצלחתי לפתוח טיקט. תבדוק שיש לי הרשאת Manage Channels בשרת הזה.");
+      await interaction.editReply(`לא הצלחתי לפתוח טיקט גם בלי קטגוריה. קוד שגיאה: ${error.code || "unknown"}. תבדוק שיש לי Administrator או Manage Channels בשרת הזה.`);
       return null;
     });
 
