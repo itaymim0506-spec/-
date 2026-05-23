@@ -224,6 +224,33 @@ function buildTicketPanel() {
   return { embeds: [embed], components: [row], files };
 }
 
+function buildVerifyPanel() {
+  return {
+    flags: 32768,
+    components: [
+      {
+        type: 17,
+        components: [
+          { type: 10, content: "כדי להיות מאומתים לחצו על הכפתור" },
+          { type: 12, items: [{ media: { url: VERIFY_IMAGE_URL } }] },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                custom_id: VERIFY_BUTTON_ID,
+                label: "Verify",
+                style: 3,
+              },
+            ],
+          },
+        ],
+        accent_color: 15823360,
+      },
+    ],
+  };
+}
+
 function buildTicketActionRow({ claimedBy } = {}) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -307,6 +334,31 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
+  if (!message.author.bot && message.content.trim() === "!חדש-כפתורים") {
+    if (!message.member?.permissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await message.reply("רק מי שיש לו Manage Server יכול לחדש את הכפתורים.").catch(console.error);
+      return;
+    }
+
+    const { features, editBattlePanelChannelId } = getGuildConfig(message.guild.id);
+    if (features.verify) {
+      await message.channel.send(buildVerifyPanel()).catch(console.error);
+    }
+
+    if (features.tickets) {
+      await message.channel.send(buildTicketPanel()).catch(console.error);
+    }
+
+    if (features.editBattles) {
+      const editBattleChannel = await message.guild.channels.fetch(editBattlePanelChannelId).catch(() => null);
+      const targetChannel = editBattleChannel?.isTextBased() ? editBattleChannel : message.channel;
+      await targetChannel.send(buildEditBattlePanel()).catch(console.error);
+    }
+
+    await message.reply("חידשתי את הכפתורים הפעילים לשרת הזה.").catch(console.error);
+    return;
+  }
+
   if (message.author.bot || message.content.toLowerCase() !== "!help") return;
   if (!isFeatureEnabled(message.guild.id, "help")) return;
 
@@ -367,30 +419,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    await interaction.channel.send({
-      flags: 32768,
-      components: [
-        {
-          type: 17,
-          components: [
-            { type: 10, content: "כדי להיות מאומתים לחצו על הכפתור" },
-            { type: 12, items: [{ media: { url: VERIFY_IMAGE_URL } }] },
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  custom_id: VERIFY_BUTTON_ID,
-                  label: "Verify",
-                  style: 3,
-                },
-              ],
-            },
-          ],
-          accent_color: 15823360,
-        },
-      ],
-    });
+    await interaction.channel.send(buildVerifyPanel());
 
     await interaction.reply({ content: "Verification panel posted.", flags: 64 });
     return;
