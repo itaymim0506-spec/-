@@ -94,7 +94,8 @@ const closingChannels = new Set();
 
 function isStaff(member) {
   const { staffRoleIds } = getGuildConfig(member.guild.id);
-  return staffRoleIds.some((roleId) => member.roles.cache.has(roleId));
+  return member.permissions?.has(PermissionFlagsBits.ManageGuild)
+    || staffRoleIds.some((roleId) => member.roles.cache.has(roleId));
 }
 
 function canOpenTicket(member) {
@@ -117,6 +118,10 @@ function isTicketTypeEnabled(features, ticketType) {
 function getValidCategoryId(guild, categoryId) {
   const category = categoryId ? guild.channels.cache.get(categoryId) : null;
   return category?.type === ChannelType.GuildCategory ? category.id : null;
+}
+
+function getValidRoleIds(guild, roleIds) {
+  return roleIds.filter((roleId) => guild.roles.cache.has(roleId));
 }
 
 function getTicketOwnerId(channel) {
@@ -480,6 +485,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const ticketType = interaction.isButton() ? getTicketTypeByButton(interaction.customId) : null;
   if (ticketType) {
     const { features, ticketCategoryId, staffRoleIds } = getGuildConfig(interaction.guild.id);
+    const validStaffRoleIds = getValidRoleIds(interaction.guild, staffRoleIds);
 
     if (!features.tickets || !isTicketTypeEnabled(features, ticketType)) {
       await interaction.reply({ content: "סוג הטיקט הזה כבוי כרגע.", flags: 64 });
@@ -524,7 +530,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           PermissionFlagsBits.ReadMessageHistory,
         ],
       },
-      ...staffRoleIds.map((roleId) => ({
+      ...validStaffRoleIds.map((roleId) => ({
         id: roleId,
         allow: [
           PermissionFlagsBits.ViewChannel,
@@ -587,8 +593,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
       const { staffRoleIds } = getGuildConfig(interaction.guild.id);
+      const validStaffRoleIds = getValidRoleIds(interaction.guild, staffRoleIds);
       await Promise.all([
-        ...staffRoleIds.map((roleId) => interaction.channel.permissionOverwrites.edit(roleId, {
+        ...validStaffRoleIds.map((roleId) => interaction.channel.permissionOverwrites.edit(roleId, {
           ViewChannel: false,
         })),
         interaction.channel.permissionOverwrites.edit(ticketOwnerId, {
