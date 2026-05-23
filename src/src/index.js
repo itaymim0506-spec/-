@@ -22,7 +22,7 @@ const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
   .replace(/^Bot\s+/i, "");
 const { CLIENT_ID } = process.env;
 
-const { getGuildConfig } = require("./config-store");
+const { getGuildConfig, setGuildConfig } = require("./config-store");
 const { buildSlashCommands } = require("./slash-commands");
 
 if (!DISCORD_TOKEN) {
@@ -126,6 +126,27 @@ function getValidCategoryId(guild, categoryId) {
 
 function getValidRoleIds(guild, roleIds) {
   return roleIds.filter((roleId) => guild.roles.cache.has(roleId));
+}
+
+async function getOrCreateTicketCategory(guild, configuredCategoryId) {
+  const validCategoryId = getValidCategoryId(guild, configuredCategoryId);
+  if (validCategoryId) return validCategoryId;
+
+  const existingCategory = guild.channels.cache.find((channel) => (
+    channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === "tickets"
+  ));
+  if (existingCategory) {
+    setGuildConfig(guild.id, { ticketCategoryId: existingCategory.id });
+    return existingCategory.id;
+  }
+
+  const category = await guild.channels.create({
+    name: "Tickets",
+    type: ChannelType.GuildCategory,
+  });
+
+  setGuildConfig(guild.id, { ticketCategoryId: category.id });
+  return category.id;
 }
 
 function getTicketOwnerId(channel) {
@@ -555,7 +576,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    const parentCategoryId = getValidCategoryId(interaction.guild, ticketCategoryId) ?? interaction.channel.parentId;
     const ticketTopic = buildTicketTopic(ticketType, interaction.user.id);
     const existingTicket = interaction.guild.channels.cache.find((channel) => (
       channel.guild.id === interaction.guild.id && channel.topic === ticketTopic
@@ -567,6 +587,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     await interaction.deferReply({ flags: 64 });
+
+    const parentCategoryId = await getOrCreateTicketCategory(interaction.guild, ticketCategoryId).catch(async (error) => {
+      console.error(error);
+      await interaction.editReply("לא הצלחתי להכין קטגוריית Tickets. תבדוק שלבוט יש הרשאת Manage Channels בשרת הזה.");
+      return null;
+    });
+
+    if (!parentCategoryId) return;
 
     const permissionOverwrites = [
       { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -605,7 +633,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       permissionOverwrites,
     }).catch(async (error) => {
       console.error(error);
-      await interaction.editReply("לא הצלחתי לפתוח טיקט. תבדוק שיש לי הרשאת Manage Channels ושהקטגוריה קיימת.");
+      await interaction.editReply("לא הצלחתי לפתוח טיקט. תבדוק שיש לי הרשאת Manage Channels בשרת הזה.");
       return null;
     });
 
