@@ -9,6 +9,9 @@ const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
 const BASE_URL = (process.env.DASHBOARD_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = `${BASE_URL}/auth/discord/callback`;
+const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
+  .trim()
+  .replace(/^Bot\s+/i, "");
 const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
@@ -389,8 +392,8 @@ app.listen(PORT, () => {
   console.log(`Dashboard running on http://localhost:${PORT}`);
 });
 
-if (process.env.DISCORD_TOKEN) {
-  client.login(process.env.DISCORD_TOKEN).catch((error) => {
+if (DISCORD_TOKEN) {
+  client.login(DISCORD_TOKEN).catch((error) => {
     console.error("Dashboard Discord client login failed:", error);
   });
 } else {

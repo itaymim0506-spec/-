@@ -15,9 +15,9 @@ const {
   PermissionFlagsBits,
 } = require("discord.js");
 
-const {
-  DISCORD_TOKEN,
-} = process.env;
+const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
+  .trim()
+  .replace(/^Bot\s+/i, "");
 
 const { getGuildConfig } = require("./config-store");
 
