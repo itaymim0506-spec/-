@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = {
   ticketOpenRoleId: "1498364648226033664",
   ticketPanelTitle: "פתיחת טיקטים",
   ticketPanelDescription: "לחצו על הכפתור כדי לפתוח טיקט לצוות.",
+  ticketPanelImageUrl: "",
   ticketNameMode: "number",
   ticketCounter: 0,
   ticketTranscriptChannelId: "",

@@ -664,7 +664,9 @@ function buildTicketPanelMessages(guildId) {
       .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
 
     const files = [];
-    if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
+    if (config.ticketPanelImageUrl) {
+      embed.setImage(config.ticketPanelImageUrl);
+    } else if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
       embed.setImage(`attachment://${TICKET_PANEL_IMAGE_NAME}`);
       files.push({ attachment: TICKET_PANEL_IMAGE_PATH, name: TICKET_PANEL_IMAGE_NAME });
     }

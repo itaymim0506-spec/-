@@ -57,6 +57,7 @@ const upload = multer({
 });
 
 const imageUpload = upload.fields([
+  { name: "ticketPanelImageFile", maxCount: 1 },
   { name: "verifyImageFile", maxCount: 1 },
   { name: "welcomeImageFile", maxCount: 1 },
   { name: "giveawayImageFile", maxCount: 1 },
@@ -136,7 +137,9 @@ function buildTicketPanelMessages(guildId) {
       .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
 
     const files = [];
-    if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
+    if (config.ticketPanelImageUrl) {
+      embed.setImage(config.ticketPanelImageUrl);
+    } else if (fs.existsSync(TICKET_PANEL_IMAGE_PATH)) {
       embed.setImage(`attachment://${TICKET_PANEL_IMAGE_NAME}`);
       files.push({ attachment: TICKET_PANEL_IMAGE_PATH, name: TICKET_PANEL_IMAGE_NAME });
     }
@@ -282,6 +285,7 @@ function buildGuildConfigFromBody(body, files = {}) {
     ticketPanelChannelId: trimField(body.ticketPanelChannelId),
     ticketPanelTitle: trimField(body.ticketPanelTitle),
     ticketPanelDescription: trimField(body.ticketPanelDescription),
+    ticketPanelImageUrl: uploadedImageUrl(files, "ticketPanelImageFile", body.ticketPanelImageUrl),
     ticketNameMode: body.ticketNameMode || "number",
     ticketTranscriptChannelId: trimField(body.ticketTranscriptChannelId),
     ticketTypes: parseTicketTypes(body),
@@ -1067,6 +1071,10 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textInput("ticketPanelTitle", config.ticketPanelTitle, "פתיחת טיקטים")}
           <label>טקסט ההודעה</label>
           ${textArea("ticketPanelDescription", config.ticketPanelDescription, "כתוב כאן מה המשתמשים צריכים לדעת לפני פתיחת טיקט.")}
+          <label>תמונה להודעת הטיקטים</label>
+          ${textInput("ticketPanelImageUrl", config.ticketPanelImageUrl, "https://example.com/image.png")}
+          <label>או העלאת תמונה מהמחשב</label>
+          ${fileInput("ticketPanelImageFile")}
           <label>חדר שבו תופיע הודעת הטיקטים</label>
           ${select("ticketPanelChannelId", textChannelOptions, config.ticketPanelChannelId, "החדר שבו מריצים /setup-ticket")}
           <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-ticket-panel" formmethod="post">שלח הודעת טיקטים עכשיו</button>
