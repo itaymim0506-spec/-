@@ -275,6 +275,7 @@ function buildGuildConfigFromBody(body, files = {}) {
       editBattles: Boolean(body.featureEditBattles),
       giveaways: Boolean(body.featureGiveaways),
       moderation: Boolean(body.featureModeration),
+      music: Boolean(body.featureMusic),
     },
     ticketCategoryId: trimField(body.ticketCategoryId),
     ticketOpenRoleId: trimField(body.ticketOpenRoleId),
@@ -969,6 +970,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <a class="nav-link" href="#verify">אימות</a>
         <a class="nav-link" href="#welcome">ברוכים הבאים</a>
         <a class="nav-link" href="#giveaways">Giveaways</a>
+        <a class="nav-link" href="#music">מוזיקה</a>
         <a class="nav-link" href="#moderation">אבטחה</a>
         <a class="nav-link" href="#help">עזרה</a>
         <a class="nav-link" href="#edit-battles">חדר קרב</a>
@@ -989,6 +991,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               <div class="stat"><strong>${config.features.help ? "פעיל" : "כבוי"}</strong><span class="muted">Help</span></div>
               <div class="stat"><strong>${config.features.giveaways ? "פעיל" : "כבוי"}</strong><span class="muted">Giveaways</span></div>
               <div class="stat"><strong>${config.features.moderation ? "פעיל" : "כבוי"}</strong><span class="muted">אבטחה</span></div>
+              <div class="stat"><strong>${config.features.music ? "פעיל" : "כבוי"}</strong><span class="muted">Music</span></div>
             </div>
           </div>
         </div>
@@ -1002,6 +1005,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureEditBattles", "חדר קרב", config.features.editBattles)}
           ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)}
           ${checkbox("featureModeration", "חסימת קללות ואנטי ספאם", config.features.moderation)}
+          ${checkbox("featureMusic", "מערכת מוזיקה", config.features.music)}
         </div>
 
         <div id="tickets" class="panel-section card">
@@ -1107,6 +1111,18 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <div id="help" class="panel-section card">
           <h2>עזרה</h2>
           <p class="muted">מערכת העזרה משתמשת ברולי הצוות שהגדרת במדור הטיקטים. מי שיש לו אחד מהרולים האלה יכול לקחת פניות עזרה.</p>
+        </div>
+
+        <div id="music" class="panel-section card">
+          <h2>מוזיקה</h2>
+          <p class="muted">פקודות המוזיקה עובדות בחדר קול. המשתמש צריך להיות בשיחה ואז להשתמש בפקודות האלה בדיסקורד.</p>
+          <div class="choice-list">
+            <p><code>/music play url</code> - ניגון שיר מקישור</p>
+            <p><code>/music queue</code> - הצגת התור</p>
+            <p><code>/music skip</code> - דילוג לשיר הבא</p>
+            <p><code>/music stop</code> - עצירה וניקוי התור</p>
+            <p><code>/music leave</code> - הוצאת הבוט מהשיחה</p>
+          </div>
         </div>
 
         <div id="moderation" class="panel-section card">

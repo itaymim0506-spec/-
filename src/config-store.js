@@ -13,6 +13,7 @@ const DEFAULT_CONFIG = {
     editBattles: true,
     giveaways: true,
     moderation: true,
+    music: true,
   },
   ticketCategoryId: "1498364707747401941",
   ticketOpenRoleId: "1498364648226033664",

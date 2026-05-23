@@ -4,6 +4,17 @@ const fs = require("fs");
 const path = require("path");
 
 const {
+  AudioPlayerStatus,
+  createAudioPlayer,
+  createAudioResource,
+  entersState,
+  getVoiceConnection,
+  joinVoiceChannel,
+  VoiceConnectionStatus,
+} = require("@discordjs/voice");
+const play = require("play-dl");
+
+const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -78,6 +89,7 @@ const editBattleQueue = [];
 const finishVotesByChannel = new Map();
 const closingChannels = new Set();
 const spamBuckets = new Map();
+const musicQueues = new Map();
 
 function isStaff(member) {
   const { staffRoleIds } = getGuildConfig(member.guild.id);
@@ -446,6 +458,175 @@ async function checkGiveaways() {
   }
 }
 
+function getMusicQueue(guildId) {
+  let queue = musicQueues.get(guildId);
+  if (!queue) {
+    const player = createAudioPlayer();
+    queue = {
+      connection: null,
+      current: null,
+      player,
+      songs: [],
+      textChannel: null,
+    };
+    musicQueues.set(guildId, queue);
+
+    player.on(AudioPlayerStatus.Idle, () => {
+      queue.current = null;
+      playNextSong(guildId).catch(console.error);
+    });
+
+    player.on("error", (error) => {
+      console.error("Music player error:", error);
+      queue.textChannel?.send("הייתה שגיאה בניגון השיר, מדלג לשיר הבא.").catch(console.error);
+      queue.current = null;
+      playNextSong(guildId).catch(console.error);
+    });
+  }
+  return queue;
+}
+
+async function resolveSong(url, requestedBy) {
+  const validation = await play.validate(url).catch(() => false);
+  if (!validation) {
+    return null;
+  }
+
+  if (validation === "yt_video") {
+    const info = await play.video_info(url);
+    return {
+      requestedBy,
+      title: info.video_details.title || url,
+      url: info.video_details.url || url,
+    };
+  }
+
+  return {
+    requestedBy,
+    title: url,
+    url,
+  };
+}
+
+async function playNextSong(guildId) {
+  const queue = getMusicQueue(guildId);
+  const nextSong = queue.songs.shift();
+  if (!nextSong) return;
+
+  queue.current = nextSong;
+  const stream = await play.stream(nextSong.url);
+  const resource = createAudioResource(stream.stream, { inputType: stream.type });
+  queue.player.play(resource);
+  queue.connection?.subscribe(queue.player);
+
+  await queue.textChannel?.send(`מנגן עכשיו: **${nextSong.title}**`).catch(console.error);
+}
+
+async function ensureMusicConnection(interaction, queue) {
+  const voiceChannel = interaction.member?.voice?.channel;
+  if (!voiceChannel) {
+    await interaction.editReply("אתה צריך להיות בחדר קול כדי להשתמש במוזיקה.");
+    return null;
+  }
+
+  const connection = joinVoiceChannel({
+    channelId: voiceChannel.id,
+    guildId: interaction.guild.id,
+    adapterCreator: interaction.guild.voiceAdapterCreator,
+    selfDeaf: true,
+  });
+
+  queue.connection = connection;
+  queue.textChannel = interaction.channel;
+  connection.subscribe(queue.player);
+
+  connection.on(VoiceConnectionStatus.Disconnected, async () => {
+    try {
+      await Promise.race([
+        entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+        entersState(connection, VoiceConnectionStatus.Connecting, 5000),
+      ]);
+    } catch {
+      connection.destroy();
+      musicQueues.delete(interaction.guild.id);
+    }
+  });
+
+  return connection;
+}
+
+async function handleMusicCommand(interaction) {
+  if (!isFeatureEnabled(interaction.guild.id, "music")) {
+    await interaction.reply({ content: "מערכת המוזיקה כבויה בשרת הזה.", flags: 64 });
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  const queue = getMusicQueue(interaction.guild.id);
+
+  if (subcommand === "play") {
+    await interaction.deferReply();
+    const url = interaction.options.getString("url", true);
+    const connection = await ensureMusicConnection(interaction, queue);
+    if (!connection) return;
+
+    const song = await resolveSong(url, interaction.user.id).catch((error) => {
+      console.error(error);
+      return null;
+    });
+
+    if (!song) {
+      await interaction.editReply("לא הצלחתי לקרוא את הקישור הזה.");
+      return;
+    }
+
+    queue.songs.push(song);
+    if (!queue.current && queue.player.state.status !== AudioPlayerStatus.Playing) {
+      await playNextSong(interaction.guild.id);
+      await interaction.editReply(`התחלתי לנגן: **${song.title}**`);
+    } else {
+      await interaction.editReply(`הוספתי לתור: **${song.title}**`);
+    }
+    return;
+  }
+
+  if (subcommand === "queue") {
+    const current = queue.current ? `עכשיו: **${queue.current.title}**` : "לא מתנגן כלום כרגע.";
+    const songs = queue.songs.slice(0, 10).map((song, index) => `${index + 1}. ${song.title}`).join("\n") || "התור ריק.";
+    await interaction.reply({ content: `${current}\n\n${songs}`, flags: 64 });
+    return;
+  }
+
+  if (subcommand === "skip") {
+    if (!queue.current) {
+      await interaction.reply({ content: "אין שיר לדלג עליו.", flags: 64 });
+      return;
+    }
+
+    queue.player.stop(true);
+    await interaction.reply("דילגתי לשיר הבא.");
+    return;
+  }
+
+  if (subcommand === "stop") {
+    queue.songs = [];
+    queue.current = null;
+    queue.player.stop(true);
+    await interaction.reply("עצרתי את המוזיקה וניקיתי את התור.");
+    return;
+  }
+
+  if (subcommand === "leave") {
+    queue.songs = [];
+    queue.current = null;
+    queue.player.stop(true);
+    const connection = queue.connection || getVoiceConnection(interaction.guild.id);
+    connection?.destroy();
+    musicQueues.delete(interaction.guild.id);
+    await interaction.reply("יצאתי מחדר הקול.");
+  }
+}
+
 function buildHelpRequest(member, textChannel, voiceChannel) {
   const embed = new EmbedBuilder()
     .setColor(0xf17100)
@@ -710,6 +891,11 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isChatInputCommand() && interaction.commandName === "music") {
+    await handleMusicCommand(interaction);
+    return;
+  }
+
   if (interaction.isChatInputCommand() && interaction.commandName === "help") {
     if (!isFeatureEnabled(interaction.guild.id, "help")) {
       await interaction.reply({ content: "מערכת העזרה כבויה בשרת הזה.", flags: 64 });
