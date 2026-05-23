@@ -209,11 +209,49 @@ function layout(title, body) {
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
     .check { display: flex; align-items: center; margin: 10px 0; color: #f4f6fb; }
     .choice-list { max-height: 260px; overflow: auto; padding: 8px 12px; border: 1px solid #374151; border-radius: 6px; background: #0f1117; }
+    .guild-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; }
+    .side-nav { position: sticky; top: 18px; }
+    .side-title { margin: 0 0 12px; color: #f4f6fb; font-size: 18px; }
+    .nav-link { display: block; padding: 10px 12px; margin: 6px 0; border-radius: 6px; color: #cbd5e1; background: #111318; border: 1px solid transparent; }
+    .nav-link.active { color: #fff; background: #7c3aed; border-color: #9f67ff; }
+    .panel-section { display: none; }
+    .panel-section.active { display: block; }
+    .home-hero { padding: 28px; border-radius: 8px; border: 1px solid #7c3aed; background: linear-gradient(135deg, #181b22 0%, #251a3f 55%, #181b22 100%); }
+    .home-title { margin: 0; font-size: 42px; line-height: 1.1; }
+    .home-subtitle { max-width: 680px; color: #cbd5e1; font-size: 16px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 18px; }
+    .stat { padding: 14px; background: #111318; border: 1px solid #2a2f3a; border-radius: 8px; }
+    .stat strong { display: block; font-size: 20px; margin-bottom: 4px; }
+    .save-row { position: sticky; bottom: 0; margin-top: 18px; padding: 12px 0; background: #111318; border-top: 1px solid #2a2f3a; }
+    @media (max-width: 780px) {
+      .guild-shell { grid-template-columns: 1fr; }
+      .side-nav { position: static; }
+      .home-title { font-size: 32px; }
+    }
   </style>
 </head>
 <body>
   <header><strong>Discord Bot Dashboard</strong></header>
   <main>${body}</main>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const sections = [...document.querySelectorAll(".panel-section")];
+      const links = [...document.querySelectorAll(".nav-link")];
+      if (!sections.length) return;
+
+      function showSection(id) {
+        const targetId = id || "home";
+        sections.forEach((section) => section.classList.toggle("active", section.id === targetId));
+        links.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === "#" + targetId));
+      }
+
+      links.forEach((link) => {
+        link.addEventListener("click", () => showSection(link.getAttribute("href").slice(1)));
+      });
+
+      showSection(location.hash ? location.hash.slice(1) : "home");
+    });
+  </script>
 </body>
 </html>`;
 }
@@ -400,12 +438,39 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   const roleOptions = getRoleOptions(guild);
 
   res.send(layout("Guild Settings", `
-    <div class="card">
-      <a href="/">חזרה</a>
-      <h2>${guild?.name || "שרת"} <span class="muted">${guildId}</span></h2>
-      <form method="post">
-        <h3>הפעלה / ביטול</h3>
-        <div class="card">
+    <form method="post" class="guild-shell">
+      <aside class="card side-nav">
+        <a href="/">חזרה לשרתים</a>
+        <h2 class="side-title">${escapeHtml(guild.name)}</h2>
+        <p class="muted">${guildId}</p>
+        <a class="nav-link active" href="#home">בית</a>
+        <a class="nav-link" href="#features">הפעלה / ביטול</a>
+        <a class="nav-link" href="#tickets">טיקטים</a>
+        <a class="nav-link" href="#verify">אימות</a>
+        <a class="nav-link" href="#welcome">ברוכים הבאים</a>
+        <a class="nav-link" href="#help">עזרה</a>
+        <a class="nav-link" href="#edit-battles">קרב אדיטים</a>
+        <div class="save-row">
+          <button type="submit">שמור הגדרות</button>
+        </div>
+      </aside>
+
+      <section>
+        <div id="home" class="panel-section active">
+          <div class="home-hero">
+            <h1 class="home-title">בוט לחם</h1>
+            <p class="home-subtitle">דף הבית של ניהול השרת. מכאן עוברים למדורים בצד ומגדירים רק את מה שצריך בלי להתבלבל בין טיקטים, אימות, Welcome ושאר המערכות.</p>
+            <div class="stat-grid">
+              <div class="stat"><strong>${config.features.tickets ? "פעיל" : "כבוי"}</strong><span class="muted">מערכת טיקטים</span></div>
+              <div class="stat"><strong>${config.features.verify ? "פעיל" : "כבוי"}</strong><span class="muted">Verify</span></div>
+              <div class="stat"><strong>${config.features.welcome ? "פעיל" : "כבוי"}</strong><span class="muted">Welcome</span></div>
+              <div class="stat"><strong>${config.features.help ? "פעיל" : "כבוי"}</strong><span class="muted">Help</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="features" class="panel-section card">
+          <h2>הפעלה / ביטול</h2>
           ${checkbox("featureVerify", "Verify", config.features.verify)}
           ${checkbox("featureWelcome", "Welcome", config.features.welcome)}
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
@@ -414,31 +479,41 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureTechTickets", "עזרה טכנית", config.features.techTickets)}
           ${checkbox("featureEditBattles", "קרב אדיטים", config.features.editBattles)}
         </div>
-        <label>קטגוריית טיקטים</label>
-        ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
 
-        <label>רול שיכול לפתוח טיקט</label>
-        ${select("ticketOpenRoleId", roleOptions, config.ticketOpenRoleId, "כולם יכולים לפתוח")}
+        <div id="tickets" class="panel-section card">
+          <h2>טיקטים</h2>
+          <label>קטגוריית טיקטים</label>
+          ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
+          <label>רול שיכול לפתוח טיקט</label>
+          ${select("ticketOpenRoleId", roleOptions, config.ticketOpenRoleId, "כולם יכולים לפתוח")}
+          <label>רולים שיכולים לקחת/לסגור טיקט</label>
+          ${multiSelect("staffRoleIds", roleOptions, config.staffRoleIds || [])}
+        </div>
 
-        <label>רולים שיכולים לקחת/לסגור טיקט</label>
-        ${multiSelect("staffRoleIds", roleOptions, config.staffRoleIds || [])}
+        <div id="verify" class="panel-section card">
+          <h2>אימות</h2>
+          <label>רול Verify</label>
+          ${select("verifiedRoleId", roleOptions, config.verifiedRoleId, "לא מוגדר")}
+        </div>
 
-        <label>רול Verify</label>
-        ${select("verifiedRoleId", roleOptions, config.verifiedRoleId, "לא מוגדר")}
+        <div id="welcome" class="panel-section card">
+          <h2>ברוכים הבאים</h2>
+          <label>חדר Welcome</label>
+          ${select("welcomeChannelId", textChannelOptions, config.welcomeChannelId, "לא מוגדר")}
+        </div>
 
-        <label>חדר Welcome</label>
-        ${select("welcomeChannelId", textChannelOptions, config.welcomeChannelId, "לא מוגדר")}
+        <div id="help" class="panel-section card">
+          <h2>עזרה</h2>
+          <p class="muted">מערכת העזרה משתמשת ברולי הצוות שהגדרת במדור הטיקטים. מי שיש לו אחד מהרולים האלה יכול לקחת פניות עזרה.</p>
+        </div>
 
-        <label>חדר פאנל קרב אדיטים</label>
-        ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
-
-        <button type="submit">שמור הגדרות</button>
-      </form>
-    </div>
-    <div class="card">
-      <h3>ברירות מחדל</h3>
-      <pre>${JSON.stringify(DEFAULT_CONFIG, null, 2)}</pre>
-    </div>
+        <div id="edit-battles" class="panel-section card">
+          <h2>קרב אדיטים</h2>
+          <label>חדר פאנל קרב אדיטים</label>
+          ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
+        </div>
+      </section>
+    </form>
   `));
 });
 
