@@ -23,7 +23,6 @@ const { getGuildConfig } = require("./config-store");
 
 if (!DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN in .env");
-  process.exit(1);
 }
 
 process.on("unhandledRejection", (error) => {

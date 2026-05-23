@@ -13,11 +13,6 @@ const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
 
-if (!process.env.DISCORD_TOKEN) {
-  console.error("Missing DISCORD_TOKEN in .env");
-  process.exit(1);
-}
-
 const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -394,6 +389,10 @@ app.listen(PORT, () => {
   console.log(`Dashboard running on http://localhost:${PORT}`);
 });
 
-client.login(process.env.DISCORD_TOKEN).catch((error) => {
-  console.error("Dashboard Discord client login failed:", error);
-});
+if (process.env.DISCORD_TOKEN) {
+  client.login(process.env.DISCORD_TOKEN).catch((error) => {
+    console.error("Dashboard Discord client login failed:", error);
+  });
+} else {
+  console.error("Missing DISCORD_TOKEN. Dashboard is running, but Discord server list will be empty.");
+}
