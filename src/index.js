@@ -77,6 +77,7 @@ client.on(Events.Error, (error) => {
 const editBattleQueue = [];
 const finishVotesByChannel = new Map();
 const closingChannels = new Set();
+const spamBuckets = new Map();
 
 function isStaff(member) {
   const { staffRoleIds } = getGuildConfig(member.guild.id);
@@ -93,6 +94,58 @@ function canOpenTicket(member) {
 function isFeatureEnabled(guildId, featureName) {
   const { features } = getGuildConfig(guildId);
   return features?.[featureName] !== false;
+}
+
+function normalizeModerationText(value) {
+  return String(value || "").toLowerCase();
+}
+
+function getBlockedWord(content, blockedWords) {
+  const normalizedContent = normalizeModerationText(content);
+  return (blockedWords || []).find((word) => word && normalizedContent.includes(normalizeModerationText(word)));
+}
+
+async function sendModerationLog(guild, config, text) {
+  if (!config.moderationLogChannelId) return;
+  const channel = await guild.channels.fetch(config.moderationLogChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+  await channel.send(text).catch(console.error);
+}
+
+async function handleModeration(message) {
+  if (!message.guild || message.author.bot || !message.member) return false;
+  const config = getGuildConfig(message.guild.id);
+  if (!config.features?.moderation) return false;
+  if (isStaff(message.member)) return false;
+
+  const blockedWord = getBlockedWord(message.content, config.blockedWords);
+  if (blockedWord) {
+    await message.delete().catch(console.error);
+    await message.channel.send(`${message.author}, ${config.blockedWordsMessage || "ההודעה נמחקה כי היא כוללת מילה אסורה."}`)
+      .then((warning) => setTimeout(() => warning.delete().catch(() => {}), 5000))
+      .catch(console.error);
+    await sendModerationLog(message.guild, config, `נמחקה הודעה עם מילה אסורה מאת ${message.author} בחדר ${message.channel}. מילה: \`${blockedWord}\``);
+    return true;
+  }
+
+  const now = Date.now();
+  const windowMs = Math.max(2, Number(config.antiSpamWindowSeconds || 6)) * 1000;
+  const maxMessages = Math.max(2, Number(config.antiSpamMaxMessages || 5));
+  const bucketKey = `${message.guild.id}:${message.channel.id}:${message.author.id}`;
+  const recentMessages = (spamBuckets.get(bucketKey) || []).filter((timestamp) => now - timestamp <= windowMs);
+  recentMessages.push(now);
+  spamBuckets.set(bucketKey, recentMessages);
+
+  if (recentMessages.length > maxMessages) {
+    await message.delete().catch(console.error);
+    await message.channel.send(`${message.author}, ${config.antiSpamMessage || "נא לא להספים."}`)
+      .then((warning) => setTimeout(() => warning.delete().catch(() => {}), 5000))
+      .catch(console.error);
+    await sendModerationLog(message.guild, config, `נמחקה הודעת ספאם מאת ${message.author} בחדר ${message.channel}. ${recentMessages.length} הודעות בתוך ${Math.round(windowMs / 1000)} שניות.`);
+    return true;
+  }
+
+  return false;
 }
 
 function getValidCategoryId(guild, categoryId) {
@@ -614,6 +667,8 @@ client.on(Events.GuildMemberAdd, async (member) => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
+  if (await handleModeration(message)) return;
+
   if (!message.author.bot && message.content.trim() === "!סיימתי") {
     const requiredUserIds = getFinishRequiredUserIds(message.channel);
     if (!requiredUserIds.includes(message.author.id)) return;

@@ -12,6 +12,7 @@ const DEFAULT_CONFIG = {
     tickets: true,
     editBattles: true,
     giveaways: true,
+    moderation: true,
   },
   ticketCategoryId: "1498364707747401941",
   ticketOpenRoleId: "1498364648226033664",
@@ -60,6 +61,12 @@ const DEFAULT_CONFIG = {
   giveawayWinnerCount: 1,
   giveawayDurationMinutes: 60,
   giveawayImageUrl: "",
+  moderationLogChannelId: "",
+  blockedWords: [],
+  blockedWordsMessage: "ההודעה נמחקה כי היא כוללת מילה אסורה.",
+  antiSpamMaxMessages: 5,
+  antiSpamWindowSeconds: 6,
+  antiSpamMessage: "נא לא להספים.",
 };
 
 function ensureStore() {

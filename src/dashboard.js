@@ -274,6 +274,7 @@ function buildGuildConfigFromBody(body, files = {}) {
       tickets: Boolean(body.featureTickets),
       editBattles: Boolean(body.featureEditBattles),
       giveaways: Boolean(body.featureGiveaways),
+      moderation: Boolean(body.featureModeration),
     },
     ticketCategoryId: trimField(body.ticketCategoryId),
     ticketOpenRoleId: trimField(body.ticketOpenRoleId),
@@ -302,6 +303,12 @@ function buildGuildConfigFromBody(body, files = {}) {
     giveawayWinnerCount: Math.max(1, Number(body.giveawayWinnerCount || 1)),
     giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
     giveawayImageUrl: uploadedImageUrl(files, "giveawayImageFile", body.giveawayImageUrl),
+    moderationLogChannelId: trimField(body.moderationLogChannelId),
+    blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean),
+    blockedWordsMessage: trimField(body.blockedWordsMessage),
+    antiSpamMaxMessages: Math.max(2, Number(body.antiSpamMaxMessages || 5)),
+    antiSpamWindowSeconds: Math.max(2, Number(body.antiSpamWindowSeconds || 6)),
+    antiSpamMessage: trimField(body.antiSpamMessage),
   };
 }
 
@@ -962,6 +969,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <a class="nav-link" href="#verify">אימות</a>
         <a class="nav-link" href="#welcome">ברוכים הבאים</a>
         <a class="nav-link" href="#giveaways">Giveaways</a>
+        <a class="nav-link" href="#moderation">אבטחה</a>
         <a class="nav-link" href="#help">עזרה</a>
         <a class="nav-link" href="#edit-battles">חדר קרב</a>
         <div class="save-row">
@@ -980,6 +988,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               <div class="stat"><strong>${config.features.welcome ? "פעיל" : "כבוי"}</strong><span class="muted">Welcome</span></div>
               <div class="stat"><strong>${config.features.help ? "פעיל" : "כבוי"}</strong><span class="muted">Help</span></div>
               <div class="stat"><strong>${config.features.giveaways ? "פעיל" : "כבוי"}</strong><span class="muted">Giveaways</span></div>
+              <div class="stat"><strong>${config.features.moderation ? "פעיל" : "כבוי"}</strong><span class="muted">אבטחה</span></div>
             </div>
           </div>
         </div>
@@ -992,6 +1001,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
           ${checkbox("featureEditBattles", "חדר קרב", config.features.editBattles)}
           ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)}
+          ${checkbox("featureModeration", "חסימת קללות ואנטי ספאם", config.features.moderation)}
         </div>
 
         <div id="tickets" class="panel-section card">
@@ -1097,6 +1107,24 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <div id="help" class="panel-section card">
           <h2>עזרה</h2>
           <p class="muted">מערכת העזרה משתמשת ברולי הצוות שהגדרת במדור הטיקטים. מי שיש לו אחד מהרולים האלה יכול לקחת פניות עזרה.</p>
+        </div>
+
+        <div id="moderation" class="panel-section card">
+          <h2>אבטחה</h2>
+          <label>חדר לוגים</label>
+          ${select("moderationLogChannelId", textChannelOptions, config.moderationLogChannelId, "לא לשלוח לוגים")}
+          <h3>חסימת קללות</h3>
+          <label>מילים אסורות</label>
+          ${textArea("blockedWords", (config.blockedWords || []).join("\n"), "כל מילה בשורה נפרדת")}
+          <label>הודעה למשתמש אחרי מחיקה</label>
+          ${textInput("blockedWordsMessage", config.blockedWordsMessage, "ההודעה נמחקה כי היא כוללת מילה אסורה.")}
+          <h3>אנטי ספאם</h3>
+          <label>כמה הודעות מותר לשלוח</label>
+          ${textInput("antiSpamMaxMessages", config.antiSpamMaxMessages, "5")}
+          <label>בתוך כמה שניות</label>
+          ${textInput("antiSpamWindowSeconds", config.antiSpamWindowSeconds, "6")}
+          <label>הודעה למשתמש אחרי ספאם</label>
+          ${textInput("antiSpamMessage", config.antiSpamMessage, "נא לא להספים.")}
         </div>
 
         <div id="giveaways" class="panel-section card">
