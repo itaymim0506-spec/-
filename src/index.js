@@ -114,7 +114,7 @@ function normalizeModerationText(value) {
 
 function getBlockedWord(content, blockedWords) {
   const normalizedContent = normalizeModerationText(content);
-  return (blockedWords || []).find((word) => word && normalizedContent.includes(normalizeModerationText(word)));
+  return (blockedWords || []).slice(0, 15).find((word) => word && normalizedContent.includes(normalizeModerationText(word)));
 }
 
 async function sendModerationLog(guild, config, text) {

@@ -305,7 +305,7 @@ function buildGuildConfigFromBody(body, files = {}) {
     giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
     giveawayImageUrl: uploadedImageUrl(files, "giveawayImageFile", body.giveawayImageUrl),
     moderationLogChannelId: trimField(body.moderationLogChannelId),
-    blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean),
+    blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean).slice(0, 15),
     blockedWordsMessage: trimField(body.blockedWordsMessage),
     antiSpamMaxMessages: Math.max(2, Number(body.antiSpamMaxMessages || 5)),
     antiSpamWindowSeconds: Math.max(2, Number(body.antiSpamWindowSeconds || 6)),
@@ -1132,6 +1132,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h3>חסימת קללות</h3>
           <label>מילים אסורות</label>
           ${textArea("blockedWords", (config.blockedWords || []).join("\n"), "כל מילה בשורה נפרדת")}
+          <p class="muted">אפשר להגדיר עד 15 מילים אסורות.</p>
           <label>הודעה למשתמש אחרי מחיקה</label>
           ${textInput("blockedWordsMessage", config.blockedWordsMessage, "ההודעה נמחקה כי היא כוללת מילה אסורה.")}
           <h3>אנטי ספאם</h3>
