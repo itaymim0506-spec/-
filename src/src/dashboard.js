@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const crypto = require("crypto");
 const express = require("express");
-const { Client, GatewayIntentBits } = require("discord.js");
+const { ChannelType, Client, GatewayIntentBits } = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
@@ -30,6 +30,34 @@ function parseIds(value) {
 
 function checkbox(name, label, checked) {
   return `<label class="check"><input type="checkbox" name="${name}" value="1" ${checked ? "checked" : ""}> ${label}</label>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function option(value, label, selected = false) {
+  return `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
+  return `<select name="${name}">
+    ${option("", emptyLabel, !selectedValue)}
+    ${items.map((item) => option(item.id, item.label, item.id === selectedValue)).join("")}
+  </select>`;
+}
+
+function multiSelect(name, items, selectedValues) {
+  const selectedSet = new Set(selectedValues || []);
+  return `<select name="${name}" multiple size="${Math.min(Math.max(items.length, 4), 10)}">
+    ${items.map((item) => option(item.id, item.label, selectedSet.has(item.id))).join("")}
+  </select>
+  <p class="muted">אפשר לבחור כמה רולים עם Ctrl במקלדת.</p>`;
 }
 
 function parseCookies(req) {
@@ -128,6 +156,27 @@ function getBotInviteUrl() {
   inviteUrl.searchParams.set("permissions", "8");
   inviteUrl.searchParams.set("scope", "bot applications.commands");
   return inviteUrl.toString();
+}
+
+function getCategoryOptions(guild) {
+  return [...guild.channels.cache.values()]
+    .filter((channel) => channel.type === ChannelType.GuildCategory)
+    .sort((a, b) => a.rawPosition - b.rawPosition)
+    .map((channel) => ({ id: channel.id, label: channel.name }));
+}
+
+function getTextChannelOptions(guild) {
+  return [...guild.channels.cache.values()]
+    .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
+    .sort((a, b) => a.rawPosition - b.rawPosition)
+    .map((channel) => ({ id: channel.id, label: `#${channel.name}` }));
+}
+
+function getRoleOptions(guild) {
+  return [...guild.roles.cache.values()]
+    .filter((role) => role.id !== guild.id && !role.managed)
+    .sort((a, b) => b.position - a.position)
+    .map((role) => ({ id: role.id, label: role.name }));
 }
 
 function layout(title, body) {
@@ -332,6 +381,19 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   const { guildId } = req.params;
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
+  if (!guild) {
+    res.status(404).send(layout("Server not found", `<div class="card">הבוט לא נמצא בשרת הזה. <a href="/">חזרה</a></div>`));
+    return;
+  }
+
+  await Promise.all([
+    guild.channels.fetch().catch(console.error),
+    guild.roles.fetch().catch(console.error),
+  ]);
+
+  const categoryOptions = getCategoryOptions(guild);
+  const textChannelOptions = getTextChannelOptions(guild);
+  const roleOptions = getRoleOptions(guild);
 
   res.send(layout("Guild Settings", `
     <div class="card">
@@ -349,22 +411,22 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureEditBattles", "קרב אדיטים", config.features.editBattles)}
         </div>
         <label>קטגוריית טיקטים</label>
-        <input name="ticketCategoryId" value="${config.ticketCategoryId || ""}">
+        ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
 
         <label>רול שיכול לפתוח טיקט</label>
-        <input name="ticketOpenRoleId" value="${config.ticketOpenRoleId || ""}">
+        ${select("ticketOpenRoleId", roleOptions, config.ticketOpenRoleId, "כולם יכולים לפתוח")}
 
         <label>רולים שיכולים לקחת/לסגור טיקט</label>
-        <textarea name="staffRoleIds">${(config.staffRoleIds || []).join("\n")}</textarea>
+        ${multiSelect("staffRoleIds", roleOptions, config.staffRoleIds || [])}
 
         <label>רול Verify</label>
-        <input name="verifiedRoleId" value="${config.verifiedRoleId || ""}">
+        ${select("verifiedRoleId", roleOptions, config.verifiedRoleId, "לא מוגדר")}
 
         <label>חדר Welcome</label>
-        <input name="welcomeChannelId" value="${config.welcomeChannelId || ""}">
+        ${select("welcomeChannelId", textChannelOptions, config.welcomeChannelId, "לא מוגדר")}
 
         <label>חדר פאנל קרב אדיטים</label>
-        <input name="editBattlePanelChannelId" value="${config.editBattlePanelChannelId || ""}">
+        ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
 
         <button type="submit">שמור הגדרות</button>
       </form>
