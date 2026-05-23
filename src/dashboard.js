@@ -2,21 +2,19 @@ require("dotenv").config();
 
 const crypto = require("crypto");
 const express = require("express");
-const { Client, GatewayIntentBits } = require("discord.js");
+const { ChannelType, Client, GatewayIntentBits } = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
 const BASE_URL = (process.env.DASHBOARD_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET;
+const DISCORD_CLIENT_SECRET = String(process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET || "").trim();
 const DISCORD_REDIRECT_URI = `${BASE_URL}/auth/discord/callback`;
+const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
+  .trim()
+  .replace(/^Bot\s+/i, "");
 const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
-
-if (!process.env.DISCORD_TOKEN) {
-  console.error("Missing DISCORD_TOKEN in .env");
-  process.exit(1);
-}
 
 const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -32,6 +30,34 @@ function parseIds(value) {
 
 function checkbox(name, label, checked) {
   return `<label class="check"><input type="checkbox" name="${name}" value="1" ${checked ? "checked" : ""}> ${label}</label>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function option(value, label, selected = false) {
+  return `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
+  return `<select name="${name}">
+    ${option("", emptyLabel, !selectedValue)}
+    ${items.map((item) => option(item.id, item.label, item.id === selectedValue)).join("")}
+  </select>`;
+}
+
+function multiSelect(name, items, selectedValues) {
+  const selectedSet = new Set(selectedValues || []);
+  return `<select name="${name}" multiple size="${Math.min(Math.max(items.length, 4), 10)}">
+    ${items.map((item) => option(item.id, item.label, selectedSet.has(item.id))).join("")}
+  </select>
+  <p class="muted">אפשר לבחור כמה רולים עם Ctrl במקלדת.</p>`;
 }
 
 function parseCookies(req) {
@@ -100,7 +126,8 @@ async function exchangeDiscordCode(code) {
   });
 
   if (!response.ok) {
-    throw new Error(`Discord token exchange failed with ${response.status}`);
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(`Discord token exchange failed with ${response.status}: ${errorBody}`);
   }
 
   return response.json();
@@ -129,6 +156,27 @@ function getBotInviteUrl() {
   inviteUrl.searchParams.set("permissions", "8");
   inviteUrl.searchParams.set("scope", "bot applications.commands");
   return inviteUrl.toString();
+}
+
+function getCategoryOptions(guild) {
+  return [...guild.channels.cache.values()]
+    .filter((channel) => channel.type === ChannelType.GuildCategory)
+    .sort((a, b) => a.rawPosition - b.rawPosition)
+    .map((channel) => ({ id: channel.id, label: channel.name }));
+}
+
+function getTextChannelOptions(guild) {
+  return [...guild.channels.cache.values()]
+    .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
+    .sort((a, b) => a.rawPosition - b.rawPosition)
+    .map((channel) => ({ id: channel.id, label: `#${channel.name}` }));
+}
+
+function getRoleOptions(guild) {
+  return [...guild.roles.cache.values()]
+    .filter((role) => role.id !== guild.id && !role.managed)
+    .sort((a, b) => b.position - a.position)
+    .map((role) => ({ id: role.id, label: role.name }));
 }
 
 function layout(title, body) {
@@ -250,7 +298,15 @@ app.get("/auth/discord/callback", async (req, res) => {
     res.redirect("/");
   } catch (error) {
     console.error(error);
-    res.status(500).send(layout("Login failed", `<div class="card">Discord login failed. <a href="/login">Try again</a></div>`));
+    res.status(500).send(layout("Login failed", `
+      <div class="card">
+        <h2>Discord login failed</h2>
+        <p>Check <code>DISCORD_CLIENT_SECRET</code> and the OAuth2 Redirect URL in Discord Developer Portal.</p>
+        <p class="muted">Redirect URL must be exactly:</p>
+        <pre>${DISCORD_REDIRECT_URI}</pre>
+        <a href="/login">Try again</a>
+      </div>
+    `));
   }
 });
 
@@ -325,6 +381,19 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   const { guildId } = req.params;
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
+  if (!guild) {
+    res.status(404).send(layout("Server not found", `<div class="card">הבוט לא נמצא בשרת הזה. <a href="/">חזרה</a></div>`));
+    return;
+  }
+
+  await Promise.all([
+    guild.channels.fetch().catch(console.error),
+    guild.roles.fetch().catch(console.error),
+  ]);
+
+  const categoryOptions = getCategoryOptions(guild);
+  const textChannelOptions = getTextChannelOptions(guild);
+  const roleOptions = getRoleOptions(guild);
 
   res.send(layout("Guild Settings", `
     <div class="card">
@@ -342,22 +411,22 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureEditBattles", "קרב אדיטים", config.features.editBattles)}
         </div>
         <label>קטגוריית טיקטים</label>
-        <input name="ticketCategoryId" value="${config.ticketCategoryId || ""}">
+        ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
 
         <label>רול שיכול לפתוח טיקט</label>
-        <input name="ticketOpenRoleId" value="${config.ticketOpenRoleId || ""}">
+        ${select("ticketOpenRoleId", roleOptions, config.ticketOpenRoleId, "כולם יכולים לפתוח")}
 
         <label>רולים שיכולים לקחת/לסגור טיקט</label>
-        <textarea name="staffRoleIds">${(config.staffRoleIds || []).join("\n")}</textarea>
+        ${multiSelect("staffRoleIds", roleOptions, config.staffRoleIds || [])}
 
         <label>רול Verify</label>
-        <input name="verifiedRoleId" value="${config.verifiedRoleId || ""}">
+        ${select("verifiedRoleId", roleOptions, config.verifiedRoleId, "לא מוגדר")}
 
         <label>חדר Welcome</label>
-        <input name="welcomeChannelId" value="${config.welcomeChannelId || ""}">
+        ${select("welcomeChannelId", textChannelOptions, config.welcomeChannelId, "לא מוגדר")}
 
         <label>חדר פאנל קרב אדיטים</label>
-        <input name="editBattlePanelChannelId" value="${config.editBattlePanelChannelId || ""}">
+        ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
 
         <button type="submit">שמור הגדרות</button>
       </form>
@@ -390,10 +459,14 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
   res.redirect(`/guild/${req.params.guildId}`);
 });
 
-client.once("clientReady", () => {
-  app.listen(PORT, () => {
-    console.log(`Dashboard running on http://localhost:${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`Dashboard running on http://localhost:${PORT}`);
 });
 
-client.login(process.env.DISCORD_TOKEN);
+if (DISCORD_TOKEN) {
+  client.login(DISCORD_TOKEN).catch((error) => {
+    console.error("Dashboard Discord client login failed:", error);
+  });
+} else {
+  console.error("Missing DISCORD_TOKEN. Dashboard is running, but Discord server list will be empty.");
+}

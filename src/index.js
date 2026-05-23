@@ -13,17 +13,21 @@ const {
   Events,
   GatewayIntentBits,
   PermissionFlagsBits,
+  REST,
+  Routes,
 } = require("discord.js");
 
-const {
-  DISCORD_TOKEN,
-} = process.env;
+const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
+  .trim()
+  .replace(/^Bot\s+/i, "");
+const { CLIENT_ID } = process.env;
 
-const { getGuildConfig } = require("./config-store");
+const { getGuildConfig, setGuildConfig } = require("./config-store");
+const { buildSlashCommands } = require("./slash-commands");
+const APP_VERSION = "tickets-auto-category-v2";
 
 if (!DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN in .env");
-  process.exit(1);
 }
 
 process.on("unhandledRejection", (error) => {
@@ -95,12 +99,14 @@ const closingChannels = new Set();
 
 function isStaff(member) {
   const { staffRoleIds } = getGuildConfig(member.guild.id);
-  return staffRoleIds.some((roleId) => member.roles.cache.has(roleId));
+  return member.permissions?.has(PermissionFlagsBits.ManageGuild)
+    || staffRoleIds.some((roleId) => member.roles.cache.has(roleId));
 }
 
 function canOpenTicket(member) {
   const { ticketOpenRoleId } = getGuildConfig(member.guild.id);
-  return Boolean(ticketOpenRoleId) && member.roles.cache.has(ticketOpenRoleId);
+  if (!ticketOpenRoleId) return true;
+  return member.roles.cache.has(ticketOpenRoleId);
 }
 
 function isFeatureEnabled(guildId, featureName) {
@@ -112,6 +118,56 @@ function isTicketTypeEnabled(features, ticketType) {
   if (ticketType === TICKET_TYPES.report) return features.reportTickets !== false;
   if (ticketType === TICKET_TYPES.tech) return features.techTickets !== false;
   return true;
+}
+
+function getValidCategoryId(guild, categoryId) {
+  const category = categoryId ? guild.channels.cache.get(categoryId) : null;
+  return category?.type === ChannelType.GuildCategory ? category.id : null;
+}
+
+function getValidRoleIds(guild, roleIds) {
+  return roleIds.filter((roleId) => guild.roles.cache.has(roleId));
+}
+
+async function botCanManageChannels(guild) {
+  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  return botMember?.permissions.has(PermissionFlagsBits.ManageChannels) ?? false;
+}
+
+async function getOrCreateTicketCategory(guild, configuredCategoryId) {
+  const validCategoryId = getValidCategoryId(guild, configuredCategoryId);
+  if (validCategoryId) return validCategoryId;
+
+  const existingCategory = guild.channels.cache.find((channel) => (
+    channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === "tickets"
+  ));
+  if (existingCategory) {
+    setGuildConfig(guild.id, { ticketCategoryId: existingCategory.id });
+    return existingCategory.id;
+  }
+
+  const category = await guild.channels.create({
+    name: "Tickets",
+    type: ChannelType.GuildCategory,
+  });
+
+  setGuildConfig(guild.id, { ticketCategoryId: category.id });
+  return category.id;
+}
+
+async function createTicketChannel(guild, options) {
+  try {
+    return await guild.channels.create(options);
+  } catch (error) {
+    console.error("Ticket channel create with category failed:", error);
+
+    if (!options.parent) throw error;
+
+    return guild.channels.create({
+      ...options,
+      parent: null,
+    });
+  }
 }
 
 function getTicketOwnerId(channel) {
@@ -214,6 +270,33 @@ function buildTicketPanel() {
   return { embeds: [embed], components: [row], files };
 }
 
+function buildVerifyPanel() {
+  return {
+    flags: 32768,
+    components: [
+      {
+        type: 17,
+        components: [
+          { type: 10, content: "כדי להיות מאומתים לחצו על הכפתור" },
+          { type: 12, items: [{ media: { url: VERIFY_IMAGE_URL } }] },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                custom_id: VERIFY_BUTTON_ID,
+                label: "Verify",
+                style: 3,
+              },
+            ],
+          },
+        ],
+        accent_color: 15823360,
+      },
+    ],
+  };
+}
+
 function buildTicketActionRow({ claimedBy } = {}) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -250,6 +333,38 @@ function buildEditBattlePanel() {
   return { embeds: [embed], components: [row], files };
 }
 
+async function sendFreshPanels(guild, channel) {
+  const { features, editBattlePanelChannelId } = getGuildConfig(guild.id);
+  const sentPanels = [];
+
+  if (features.verify) {
+    await channel.send(buildVerifyPanel());
+    sentPanels.push("Verify");
+  }
+
+  if (features.tickets) {
+    await channel.send(buildTicketPanel());
+    sentPanels.push("Tickets");
+  }
+
+  if (features.editBattles) {
+    const editBattleChannel = await guild.channels.fetch(editBattlePanelChannelId).catch(() => null);
+    const targetChannel = editBattleChannel?.isTextBased() ? editBattleChannel : channel;
+    await targetChannel.send(buildEditBattlePanel());
+    sentPanels.push("Edit battles");
+  }
+
+  return sentPanels;
+}
+
+async function syncSlashCommands() {
+  if (!CLIENT_ID || !DISCORD_TOKEN) return;
+
+  const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: buildSlashCommands() });
+  console.log("Slash commands synced.");
+}
+
 function pickRandomQueuedUserId() {
   const index = Math.floor(Math.random() * editBattleQueue.length);
   return editBattleQueue.splice(index, 1)[0];
@@ -260,7 +375,10 @@ function buildTicketTopic(ticketType, userId) {
 }
 
 client.once(Events.ClientReady, (readyClient) => {
-  console.log(`Logged in as ${readyClient.user.tag}`);
+  console.log(`Logged in as ${readyClient.user.tag} (${APP_VERSION})`);
+  syncSlashCommands().catch((error) => {
+    console.error("Slash command sync failed:", error);
+  });
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -294,6 +412,18 @@ client.on(Events.MessageCreate, async (message) => {
     } else {
       await message.reply("סימנתי שסיימת. מחכים למשתמש השני שיכתוב `!סיימתי`.").catch(console.error);
     }
+    return;
+  }
+
+  if (!message.author.bot && message.content.trim() === "!חדש-כפתורים") {
+    if (!message.member?.permissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await message.reply("רק מי שיש לו Manage Server יכול לחדש את הכפתורים.").catch(console.error);
+      return;
+    }
+
+    await sendFreshPanels(message.guild, message.channel).catch(console.error);
+
+    await message.reply("חידשתי את הכפתורים הפעילים לשרת הזה.").catch(console.error);
     return;
   }
 
@@ -357,30 +487,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    await interaction.channel.send({
-      flags: 32768,
-      components: [
-        {
-          type: 17,
-          components: [
-            { type: 10, content: "כדי להיות מאומתים לחצו על הכפתור" },
-            { type: 12, items: [{ media: { url: VERIFY_IMAGE_URL } }] },
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  custom_id: VERIFY_BUTTON_ID,
-                  label: "Verify",
-                  style: 3,
-                },
-              ],
-            },
-          ],
-          accent_color: 15823360,
-        },
-      ],
-    });
+    await interaction.channel.send(buildVerifyPanel());
 
     await interaction.reply({ content: "Verification panel posted.", flags: 64 });
     return;
@@ -475,6 +582,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const ticketType = interaction.isButton() ? getTicketTypeByButton(interaction.customId) : null;
   if (ticketType) {
     const { features, ticketCategoryId, staffRoleIds } = getGuildConfig(interaction.guild.id);
+    const validStaffRoleIds = getValidRoleIds(interaction.guild, staffRoleIds);
 
     if (!features.tickets || !isTicketTypeEnabled(features, ticketType)) {
       await interaction.reply({ content: "סוג הטיקט הזה כבוי כרגע.", flags: 64 });
@@ -491,13 +599,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const ticketTopic = buildTicketTopic(ticketType, interaction.user.id);
     const existingTicket = interaction.guild.channels.cache.find((channel) => (
-      channel.parentId === ticketCategoryId && channel.topic === ticketTopic
+      channel.guild.id === interaction.guild.id && channel.topic === ticketTopic
     ));
 
     if (existingTicket) {
       await interaction.reply({ content: `כבר יש לך טיקט פתוח: ${existingTicket}`, flags: 64 });
       return;
     }
+
+    await interaction.deferReply({ flags: 64 });
+
+    if (!await botCanManageChannels(interaction.guild)) {
+      await interaction.editReply("אין לי הרשאת Manage Channels בשרת הזה. צריך להזמין אותי עם Administrator או לתת לי Manage Channels.");
+      return;
+    }
+
+    const parentCategoryId = await getOrCreateTicketCategory(interaction.guild, ticketCategoryId).catch(async (error) => {
+      console.error(error);
+      await interaction.editReply("לא הצלחתי להכין קטגוריית Tickets. תבדוק שלבוט יש הרשאת Manage Channels בשרת הזה.");
+      return null;
+    });
+
+    if (!parentCategoryId) return;
 
     const permissionOverwrites = [
       { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -518,7 +641,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           PermissionFlagsBits.ReadMessageHistory,
         ],
       },
-      ...staffRoleIds.map((roleId) => ({
+      ...validStaffRoleIds.map((roleId) => ({
         id: roleId,
         allow: [
           PermissionFlagsBits.ViewChannel,
@@ -528,18 +651,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
       })),
     ];
 
-    const ticketChannel = await interaction.guild.channels.create({
+    const ticketChannel = await createTicketChannel(interaction.guild, {
       name: `${ticketType.channelPrefix}-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90),
       type: ChannelType.GuildText,
-      parent: ticketCategoryId,
+      parent: parentCategoryId,
       topic: ticketTopic,
       permissionOverwrites,
     }).catch(async (error) => {
       console.error(error);
-      await interaction.reply({
-        content: "לא הצלחתי לפתוח טיקט. תבדוק שיש לי הרשאת Manage Channels ושהקטגוריה קיימת.",
-        flags: 64,
-      });
+      await interaction.editReply(`לא הצלחתי לפתוח טיקט גם בלי קטגוריה. קוד שגיאה: ${error.code || "unknown"}. תבדוק שיש לי Administrator או Manage Channels בשרת הזה.`);
       return null;
     });
 
@@ -561,7 +681,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       components: [buildTicketActionRow()],
     });
 
-    await interaction.reply({ content: `פתחתי לך טיקט: ${ticketChannel}`, flags: 64 });
+    await interaction.editReply(`פתחתי לך טיקט: ${ticketChannel}`);
     return;
   }
 
@@ -581,8 +701,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
       const { staffRoleIds } = getGuildConfig(interaction.guild.id);
+      const validStaffRoleIds = getValidRoleIds(interaction.guild, staffRoleIds);
       await Promise.all([
-        ...staffRoleIds.map((roleId) => interaction.channel.permissionOverwrites.edit(roleId, {
+        ...validStaffRoleIds.map((roleId) => interaction.channel.permissionOverwrites.edit(roleId, {
           ViewChannel: false,
         })),
         interaction.channel.permissionOverwrites.edit(ticketOwnerId, {
@@ -706,4 +827,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-client.login(DISCORD_TOKEN);
+client.login(DISCORD_TOKEN).catch((error) => {
+  console.error("Bot Discord client login failed:", error);
+});
