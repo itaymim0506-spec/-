@@ -99,7 +99,8 @@ function isStaff(member) {
 
 function canOpenTicket(member) {
   const { ticketOpenRoleId } = getGuildConfig(member.guild.id);
-  return Boolean(ticketOpenRoleId) && member.roles.cache.has(ticketOpenRoleId);
+  if (!ticketOpenRoleId) return true;
+  return member.roles.cache.has(ticketOpenRoleId);
 }
 
 function isFeatureEnabled(guildId, featureName) {
@@ -111,6 +112,11 @@ function isTicketTypeEnabled(features, ticketType) {
   if (ticketType === TICKET_TYPES.report) return features.reportTickets !== false;
   if (ticketType === TICKET_TYPES.tech) return features.techTickets !== false;
   return true;
+}
+
+function getValidCategoryId(guild, categoryId) {
+  const category = categoryId ? guild.channels.cache.get(categoryId) : null;
+  return category?.type === ChannelType.GuildCategory ? category.id : null;
 }
 
 function getTicketOwnerId(channel) {
@@ -488,9 +494,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    const parentCategoryId = getValidCategoryId(interaction.guild, ticketCategoryId) ?? interaction.channel.parentId;
     const ticketTopic = buildTicketTopic(ticketType, interaction.user.id);
     const existingTicket = interaction.guild.channels.cache.find((channel) => (
-      channel.parentId === ticketCategoryId && channel.topic === ticketTopic
+      channel.guild.id === interaction.guild.id && channel.topic === ticketTopic
     ));
 
     if (existingTicket) {
@@ -530,7 +537,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const ticketChannel = await interaction.guild.channels.create({
       name: `${ticketType.channelPrefix}-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90),
       type: ChannelType.GuildText,
-      parent: ticketCategoryId,
+      parent: parentCategoryId,
       topic: ticketTopic,
       permissionOverwrites,
     }).catch(async (error) => {
