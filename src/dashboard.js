@@ -585,6 +585,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textInput("ticketPanelTitle", config.ticketPanelTitle, "פתיחת טיקטים")}
           <label>טקסט ההודעה</label>
           ${textArea("ticketPanelDescription", config.ticketPanelDescription, "כתוב כאן מה המשתמשים צריכים לדעת לפני פתיחת טיקט.")}
+          <label>חדר שבו תופיע הודעת הטיקטים</label>
+          ${select("ticketPanelChannelId", textChannelOptions, config.ticketPanelChannelId, "החדר שבו מריצים /setup-ticket")}
           <label>איך לקרוא לחדר שנפתח</label>
           ${select("ticketNameMode", [
             { id: "number", label: "לפי מספר הטיקט" },
@@ -633,6 +635,13 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h2>ברוכים הבאים</h2>
           <label>חדר Welcome</label>
           ${select("welcomeChannelId", textChannelOptions, config.welcomeChannelId, "לא מוגדר")}
+          <label>כותרת ההודעה</label>
+          ${textInput("welcomeTitle", config.welcomeTitle, "Welcome!")}
+          <label>הודעת Welcome</label>
+          ${textArea("welcomeMessage", config.welcomeMessage, "Hey {user}, welcome to **{server}**.")}
+          <p class="muted">אפשר להשתמש ב־{user}, {username}, {server} בתוך ההודעה.</p>
+          <label>צבע ההודעה</label>
+          ${textInput("welcomeColor", config.welcomeColor, "#2ecc71")}
         </div>
 
         <div id="help" class="panel-section card">
@@ -661,6 +670,7 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
     },
     ticketCategoryId: req.body.ticketCategoryId.trim(),
     ticketOpenRoleId: req.body.ticketOpenRoleId.trim(),
+    ticketPanelChannelId: req.body.ticketPanelChannelId.trim(),
     ticketPanelTitle: req.body.ticketPanelTitle.trim(),
     ticketPanelDescription: req.body.ticketPanelDescription.trim(),
     ticketNameMode: req.body.ticketNameMode || "number",
@@ -668,6 +678,9 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
     staffRoleIds: parseIds(req.body.staffRoleIds),
     verifiedRoleId: req.body.verifiedRoleId.trim(),
     welcomeChannelId: req.body.welcomeChannelId.trim(),
+    welcomeTitle: req.body.welcomeTitle.trim(),
+    welcomeMessage: req.body.welcomeMessage.trim(),
+    welcomeColor: req.body.welcomeColor.trim(),
     editBattlePanelChannelId: req.body.editBattlePanelChannelId.trim(),
   });
   res.redirect(`/guild/${req.params.guildId}`);

@@ -179,8 +179,12 @@ async function scheduleChannelClose(channel, reason) {
   if (closingChannels.has(channel.id)) return;
   closingChannels.add(channel.id);
 
+  const shouldResendTicketPanel = Boolean(getTicketOwnerId(channel));
   await channel.send(reason).catch(console.error);
   setTimeout(() => {
+    if (shouldResendTicketPanel) {
+      resendTicketPanel(channel.guild, channel).catch(console.error);
+    }
     finishVotesByChannel.delete(channel.id);
     closingChannels.delete(channel.id);
     channel.delete("Both users finished").catch(console.error);
@@ -231,6 +235,19 @@ function buildTicketChannelName(config, ticketType, user, ticketNumber) {
   if (config.ticketNameMode === "user") return `ticket-${slug(user.username || user.id, user.id)}`;
   if (config.ticketNameMode === "reason") return `ticket-${slug(ticketType.buttonLabel || ticketType.channelPrefix, ticketType.channelPrefix)}`;
   return `ticket-${String(ticketNumber).padStart(4, "0")}`;
+}
+
+function parseColor(value, fallback = 0x2ecc71) {
+  const hex = String(value || "").trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) return Number.parseInt(hex, 16);
+  return fallback;
+}
+
+function formatTemplate(template, member) {
+  return String(template || "")
+    .replaceAll("{user}", `${member}`)
+    .replaceAll("{username}", member.user.username)
+    .replaceAll("{server}", member.guild.name);
 }
 
 function buildHelpRequest(member, textChannel, voiceChannel) {
@@ -382,6 +399,21 @@ async function sendFreshPanels(guild, channel) {
   return sentPanels;
 }
 
+async function resendTicketPanel(guild, fallbackChannel) {
+  const { features, ticketPanelChannelId } = getGuildConfig(guild.id);
+  if (!features.tickets) return;
+
+  const configuredChannel = ticketPanelChannelId
+    ? await guild.channels.fetch(ticketPanelChannelId).catch(() => null)
+    : null;
+  const targetChannel = configuredChannel?.isTextBased() ? configuredChannel : fallbackChannel;
+  if (!targetChannel?.isTextBased()) return;
+
+  for (const panel of buildTicketPanelMessages(guild.id)) {
+    await targetChannel.send(panel).catch(console.error);
+  }
+}
+
 async function syncSlashCommands() {
   if (!CLIENT_ID || !DISCORD_TOKEN) return;
 
@@ -407,16 +439,16 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
-  const { features, welcomeChannelId } = getGuildConfig(member.guild.id);
+  const { features, welcomeChannelId, welcomeTitle, welcomeMessage, welcomeColor } = getGuildConfig(member.guild.id);
   if (!features.welcome || !welcomeChannelId) return;
 
   const channel = await member.guild.channels.fetch(welcomeChannelId).catch(() => null);
   if (!channel || !channel.isTextBased()) return;
 
   const embed = new EmbedBuilder()
-    .setColor(0x2ecc71)
-    .setTitle("Welcome!")
-    .setDescription(`Hey ${member}, welcome to **${member.guild.name}**.`)
+    .setColor(parseColor(welcomeColor))
+    .setTitle(welcomeTitle || "Welcome!")
+    .setDescription(formatTemplate(welcomeMessage || "Hey {user}, welcome to **{server}**.", member))
     .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
     .setTimestamp();
 
@@ -495,6 +527,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.reply({ content: "You need Manage Server permission to use this.", flags: 64 });
       return;
     }
+
+    setGuildConfig(interaction.guild.id, { ticketPanelChannelId: interaction.channel.id });
 
     for (const panel of buildTicketPanelMessages(interaction.guild.id)) {
       await interaction.channel.send(panel);
@@ -797,6 +831,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     await interaction.reply("הטיקט ייסגר בעוד 5 שניות.");
     setTimeout(() => {
+      resendTicketPanel(interaction.guild, interaction.channel).catch(console.error);
       interaction.channel.delete("Ticket closed").catch(console.error);
     }, 5000);
     return;

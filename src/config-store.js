@@ -41,6 +41,10 @@ const DEFAULT_CONFIG = {
   ],
   verifiedRoleId: process.env.VERIFIED_ROLE_ID || "1498364648226033664",
   welcomeChannelId: process.env.WELCOME_CHANNEL_ID || "1498364701078327389",
+  welcomeTitle: "Welcome!",
+  welcomeMessage: "Hey {user}, welcome to **{server}**.",
+  welcomeColor: "#2ecc71",
+  ticketPanelChannelId: "",
   editBattlePanelChannelId: "1504184944283488328",
 };
 
