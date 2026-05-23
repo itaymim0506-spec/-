@@ -11,6 +11,7 @@ const DEFAULT_CONFIG = {
     help: true,
     tickets: true,
     editBattles: true,
+    giveaways: true,
   },
   ticketCategoryId: "1498364707747401941",
   ticketOpenRoleId: "1498364648226033664",
@@ -52,6 +53,12 @@ const DEFAULT_CONFIG = {
   welcomeImageUrl: "",
   ticketPanelChannelId: "",
   editBattlePanelChannelId: "1504184944283488328",
+  giveawayChannelId: "",
+  giveawayPrize: "פרס חדש",
+  giveawayDescription: "לחצו על הכפתור כדי להשתתף בהגרלה.",
+  giveawayWinnerCount: 1,
+  giveawayDurationMinutes: 60,
+  giveawayImageUrl: "",
 };
 
 function ensureStore() {

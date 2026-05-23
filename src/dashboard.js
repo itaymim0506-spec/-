@@ -14,6 +14,7 @@ const {
   GatewayIntentBits,
 } = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
+const { setGiveaway } = require("./giveaway-store");
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
 const BASE_URL = (process.env.DASHBOARD_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
@@ -26,6 +27,7 @@ const ADMINISTRATOR_PERMISSION = 8n;
 const sessions = new Map();
 const oauthStates = new Set();
 const VERIFY_BUTTON_ID = "verify_member";
+const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const TICKET_PANEL_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
   "Downloads",
@@ -182,6 +184,33 @@ function buildWelcomeMessage(guild) {
   return { embeds: [embed] };
 }
 
+function buildGiveawayMessage(giveaway) {
+  const embed = new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle(`🎉 ${giveaway.prize}`)
+    .setDescription(giveaway.description || "לחצו על הכפתור כדי להשתתף בהגרלה.")
+    .addFields(
+      { name: "זוכים", value: String(giveaway.winnerCount || 1), inline: true },
+      { name: "משתתפים", value: "0", inline: true },
+      { name: "נגמר", value: `<t:${Math.floor(giveaway.endAt / 1000)}:R>`, inline: false },
+    )
+    .setTimestamp();
+
+  if (giveaway.imageUrl) embed.setImage(giveaway.imageUrl);
+
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${GIVEAWAY_JOIN_PREFIX}${giveaway.id}`)
+          .setLabel("השתתף בהגרלה")
+          .setStyle(ButtonStyle.Success),
+      ),
+    ],
+  };
+}
+
 function buildGuildConfigFromBody(body) {
   return {
     features: {
@@ -190,6 +219,7 @@ function buildGuildConfigFromBody(body) {
       help: Boolean(body.featureHelp),
       tickets: Boolean(body.featureTickets),
       editBattles: Boolean(body.featureEditBattles),
+      giveaways: Boolean(body.featureGiveaways),
     },
     ticketCategoryId: body.ticketCategoryId.trim(),
     ticketOpenRoleId: body.ticketOpenRoleId.trim(),
@@ -211,6 +241,12 @@ function buildGuildConfigFromBody(body) {
     welcomeColor: body.welcomeColor.trim(),
     welcomeImageUrl: body.welcomeImageUrl.trim(),
     editBattlePanelChannelId: body.editBattlePanelChannelId.trim(),
+    giveawayChannelId: body.giveawayChannelId.trim(),
+    giveawayPrize: body.giveawayPrize.trim(),
+    giveawayDescription: body.giveawayDescription.trim(),
+    giveawayWinnerCount: Math.max(1, Number(body.giveawayWinnerCount || 1)),
+    giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
+    giveawayImageUrl: body.giveawayImageUrl.trim(),
   };
 }
 
@@ -859,6 +895,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <a class="nav-link" href="#tickets">טיקטים</a>
         <a class="nav-link" href="#verify">אימות</a>
         <a class="nav-link" href="#welcome">ברוכים הבאים</a>
+        <a class="nav-link" href="#giveaways">Giveaways</a>
         <a class="nav-link" href="#help">עזרה</a>
         <a class="nav-link" href="#edit-battles">חדר קרב</a>
         <div class="save-row">
@@ -876,6 +913,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               <div class="stat"><strong>${config.features.verify ? "פעיל" : "כבוי"}</strong><span class="muted">Verify</span></div>
               <div class="stat"><strong>${config.features.welcome ? "פעיל" : "כבוי"}</strong><span class="muted">Welcome</span></div>
               <div class="stat"><strong>${config.features.help ? "פעיל" : "כבוי"}</strong><span class="muted">Help</span></div>
+              <div class="stat"><strong>${config.features.giveaways ? "פעיל" : "כבוי"}</strong><span class="muted">Giveaways</span></div>
             </div>
           </div>
         </div>
@@ -887,6 +925,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
           ${checkbox("featureEditBattles", "חדר קרב", config.features.editBattles)}
+          ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)}
         </div>
 
         <div id="tickets" class="panel-section card">
@@ -988,6 +1027,23 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <p class="muted">מערכת העזרה משתמשת ברולי הצוות שהגדרת במדור הטיקטים. מי שיש לו אחד מהרולים האלה יכול לקחת פניות עזרה.</p>
         </div>
 
+        <div id="giveaways" class="panel-section card">
+          <h2>Giveaways</h2>
+          <label>חדר ההגרלות</label>
+          ${select("giveawayChannelId", textChannelOptions, config.giveawayChannelId, "בחר חדר לשליחת הגרלה")}
+          <label>פרס</label>
+          ${textInput("giveawayPrize", config.giveawayPrize, "Nitro / Role / Prize")}
+          <label>תיאור ההגרלה</label>
+          ${textArea("giveawayDescription", config.giveawayDescription, "לחצו על הכפתור כדי להשתתף בהגרלה.")}
+          <label>מספר זוכים</label>
+          ${textInput("giveawayWinnerCount", config.giveawayWinnerCount, "1")}
+          <label>כמה דקות ההגרלה תישאר פתוחה</label>
+          ${textInput("giveawayDurationMinutes", config.giveawayDurationMinutes, "60")}
+          <label>תמונה להגרלה</label>
+          ${textInput("giveawayImageUrl", config.giveawayImageUrl, "https://example.com/image.png")}
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-giveaway" formmethod="post">שלח Giveaway עכשיו</button>
+        </div>
+
         <div id="edit-battles" class="panel-section card">
           <h2>חדר קרב</h2>
           <label>חדר פאנל חדר קרב</label>
@@ -1052,6 +1108,42 @@ app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, a
 
   await channel.send(buildWelcomeMessage(guild));
   res.send(sendResultPage("נשלח", "הודעת Welcome נשלחה לחדר שבחרת.", guildId, "welcome"));
+});
+
+app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, async (req, res) => {
+  const { guildId } = req.params;
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+
+  const guild = client.guilds.cache.get(guildId);
+  const config = getGuildConfig(guildId);
+  const channel = guild ? await getWritableTextChannel(guild, config.giveawayChannelId) : null;
+  if (!guild || !channel) {
+    res.status(400).send(sendResultPage("לא נשלח", "צריך לבחור חדר תקין להגרלה.", guildId, "giveaways"));
+    return;
+  }
+
+  const giveawayId = crypto.randomBytes(8).toString("hex");
+  const giveaway = {
+    id: giveawayId,
+    guildId,
+    channelId: channel.id,
+    messageId: "",
+    prize: config.giveawayPrize || "פרס חדש",
+    description: config.giveawayDescription || "לחצו על הכפתור כדי להשתתף בהגרלה.",
+    winnerCount: Math.max(1, Number(config.giveawayWinnerCount || 1)),
+    endAt: Date.now() + Math.max(1, Number(config.giveawayDurationMinutes || 60)) * 60000,
+    imageUrl: config.giveawayImageUrl || "",
+    participants: [],
+    winnerIds: [],
+    ended: false,
+    createdAt: Date.now(),
+  };
+
+  const message = await channel.send(buildGiveawayMessage(giveaway));
+  giveaway.messageId = message.id;
+  setGiveaway(giveawayId, giveaway);
+
+  res.send(sendResultPage("נשלח", "ה־Giveaway נשלח והבוט יבחר זוכים אוטומטית בזמן שהגדרת.", guildId, "giveaways"));
 });
 
 app.listen(PORT, () => {
