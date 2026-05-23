@@ -13,6 +13,7 @@ const {
   Client,
   EmbedBuilder,
   GatewayIntentBits,
+  StringSelectMenuBuilder,
 } = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
 const { getGiveaway, readGiveaways, setGiveaway } = require("./giveaway-store");
@@ -29,6 +30,7 @@ const sessions = new Map();
 const oauthStates = new Set();
 const UPLOAD_DIR = path.join(__dirname, "..", "public", "uploads");
 const VERIFY_BUTTON_ID = "verify_member";
+const TICKET_SELECT_MENU_ID = "select_ticket_type";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const TICKET_PANEL_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
@@ -111,8 +113,19 @@ function getTicketTypes(config) {
       buttonId: `open_ticket_${id}`,
       buttonLabel: ticketType.buttonLabel || `טיקט ${index + 1}`,
       channelPrefix: slugForConfig(ticketType.channelPrefix || ticketType.buttonLabel || id, "ticket"),
+      buttonStyle: ticketType.buttonStyle || "primary",
     };
   });
+}
+
+function getTicketButtonStyle(styleName) {
+  const styles = {
+    primary: ButtonStyle.Primary,
+    secondary: ButtonStyle.Secondary,
+    success: ButtonStyle.Success,
+    danger: ButtonStyle.Danger,
+  };
+  return styles[styleName] || ButtonStyle.Primary;
 }
 
 function formatPreviewTemplate(template, guild) {
@@ -145,13 +158,25 @@ function buildTicketPanelMessages(guildId) {
     }
 
     const rows = [];
-    for (let index = 0; index < chunk.length; index += 5) {
+    if (config.ticketPanelDisplayMode === "select") {
       rows.push(new ActionRowBuilder().addComponents(
-        chunk.slice(index, index + 5).map((ticketType) => new ButtonBuilder()
-          .setCustomId(ticketType.buttonId)
-          .setLabel(ticketType.buttonLabel)
-          .setStyle(ButtonStyle.Primary)),
+        new StringSelectMenuBuilder()
+          .setCustomId(TICKET_SELECT_MENU_ID)
+          .setPlaceholder("בחרו נושא לטיקט")
+          .addOptions(chunk.map((ticketType) => ({
+            label: ticketType.buttonLabel.slice(0, 100),
+            value: ticketType.id,
+          }))),
       ));
+    } else {
+      for (let index = 0; index < chunk.length; index += 5) {
+        rows.push(new ActionRowBuilder().addComponents(
+          chunk.slice(index, index + 5).map((ticketType) => new ButtonBuilder()
+            .setCustomId(ticketType.buttonId)
+            .setLabel(ticketType.buttonLabel)
+            .setStyle(getTicketButtonStyle(ticketType.buttonStyle))),
+        ));
+      }
     }
 
     return { embeds: [embed], components: rows, files };
@@ -286,6 +311,9 @@ function buildGuildConfigFromBody(body, files = {}) {
     ticketPanelTitle: trimField(body.ticketPanelTitle),
     ticketPanelDescription: trimField(body.ticketPanelDescription),
     ticketPanelImageUrl: uploadedImageUrl(files, "ticketPanelImageFile", body.ticketPanelImageUrl),
+    ticketPanelDisplayMode: ["buttons", "select"].includes(body.ticketPanelDisplayMode)
+      ? body.ticketPanelDisplayMode
+      : "buttons",
     ticketNameMode: body.ticketNameMode || "number",
     ticketTranscriptChannelId: trimField(body.ticketTranscriptChannelId),
     ticketTypes: parseTicketTypes(body),
@@ -323,6 +351,7 @@ function parseTicketTypes(body) {
   const prefixes = asArray(body.ticketTypeChannelPrefix);
   const titles = asArray(body.ticketTypeEmbedTitle);
   const intros = asArray(body.ticketTypeIntro);
+  const buttonStyles = asArray(body.ticketTypeButtonStyle);
 
   const ticketTypes = labels.map((label, index) => ({
     id: slugForConfig(ids[index] || label || `ticket-${index + 1}`, `ticket-${index + 1}`),
@@ -330,6 +359,9 @@ function parseTicketTypes(body) {
     channelPrefix: slugForConfig(prefixes[index] || label || `ticket-${index + 1}`, "ticket"),
     embedTitle: String(titles[index] || label || "טיקט חדש").trim(),
     intro: String(intros[index] || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.").trim(),
+    buttonStyle: ["primary", "secondary", "success", "danger"].includes(buttonStyles[index])
+      ? buttonStyles[index]
+      : "primary",
   })).filter((ticketType) => ticketType.buttonLabel);
 
   return ticketTypes.length ? ticketTypes : DEFAULT_CONFIG.ticketTypes;
@@ -390,6 +422,13 @@ function renderTicketTypeRows(ticketTypes) {
       <input type="hidden" name="ticketTypeId" value="${escapeHtml(ticketType.id || `ticket-${index + 1}`)}">
       <label>שם הכפתור</label>
       ${textInput("ticketTypeButtonLabel", ticketType.buttonLabel, "פתח טיקט")}
+      <label>צבע הכפתור</label>
+      ${select("ticketTypeButtonStyle", [
+        { id: "primary", label: "כחול" },
+        { id: "secondary", label: "אפור" },
+        { id: "success", label: "ירוק" },
+        { id: "danger", label: "אדום" },
+      ], ticketType.buttonStyle || "primary", "כחול")}
       <label>תחילת שם החדר</label>
       ${textInput("ticketTypeChannelPrefix", ticketType.channelPrefix, "ticket")}
       <label>כותרת בתוך הטיקט</label>
@@ -1075,6 +1114,11 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textInput("ticketPanelImageUrl", config.ticketPanelImageUrl, "https://example.com/image.png")}
           <label>או העלאת תמונה מהמחשב</label>
           ${fileInput("ticketPanelImageFile")}
+          <label>איך להציג את נושאי הטיקטים</label>
+          ${select("ticketPanelDisplayMode", [
+            { id: "buttons", label: "כפתורים" },
+            { id: "select", label: "רשימה נפתחת" },
+          ], config.ticketPanelDisplayMode || "buttons", "כפתורים")}
           <label>חדר שבו תופיע הודעת הטיקטים</label>
           ${select("ticketPanelChannelId", textChannelOptions, config.ticketPanelChannelId, "החדר שבו מריצים /setup-ticket")}
           <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-ticket-panel" formmethod="post">שלח הודעת טיקטים עכשיו</button>
@@ -1097,6 +1141,13 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               <input type="hidden" name="ticketTypeId" value="">
               <label>שם הכפתור</label>
               ${textInput("ticketTypeButtonLabel", "", "פתח טיקט")}
+              <label>צבע הכפתור</label>
+              ${select("ticketTypeButtonStyle", [
+                { id: "primary", label: "כחול" },
+                { id: "secondary", label: "אפור" },
+                { id: "success", label: "ירוק" },
+                { id: "danger", label: "אדום" },
+              ], "primary", "כחול")}
               <label>תחילת שם החדר</label>
               ${textInput("ticketTypeChannelPrefix", "", "ticket")}
               <label>כותרת בתוך הטיקט</label>

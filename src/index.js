@@ -26,6 +26,7 @@ const {
   PermissionFlagsBits,
   REST,
   Routes,
+  StringSelectMenuBuilder,
 } = require("discord.js");
 
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
@@ -52,6 +53,7 @@ process.on("uncaughtException", (error) => {
 
 const VERIFY_BUTTON_ID = "verify_member";
 const HELP_CLAIM_BUTTON_ID = "claim_help";
+const TICKET_SELECT_MENU_ID = "select_ticket_type";
 const TICKET_CLAIM_BUTTON_ID = "claim_ticket";
 const TICKET_CLOSE_BUTTON_ID = "close_ticket";
 const TICKET_PANEL_IMAGE_PATH = path.join(
@@ -351,12 +353,27 @@ function getTicketTypes(guildId) {
         channelPrefix: slug(ticketType.channelPrefix || ticketType.buttonLabel || id, "ticket"),
         embedTitle: ticketType.embedTitle || ticketType.buttonLabel || "טיקט חדש",
         intro: ticketType.intro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+        buttonStyle: ticketType.buttonStyle || "primary",
       };
     });
 }
 
 function getTicketTypeByButton(buttonId, guildId) {
   return getTicketTypes(guildId).find((ticketType) => ticketType.buttonId === buttonId);
+}
+
+function getTicketTypeById(ticketId, guildId) {
+  return getTicketTypes(guildId).find((ticketType) => ticketType.id === ticketId);
+}
+
+function getTicketButtonStyle(styleName) {
+  const styles = {
+    primary: ButtonStyle.Primary,
+    secondary: ButtonStyle.Secondary,
+    success: ButtonStyle.Success,
+    danger: ButtonStyle.Danger,
+  };
+  return styles[styleName] || ButtonStyle.Primary;
 }
 
 function buildTicketChannelName(config, ticketType, user, ticketNumber) {
@@ -672,13 +689,25 @@ function buildTicketPanelMessages(guildId) {
     }
 
     const rows = [];
-    for (let index = 0; index < chunk.length; index += 5) {
+    if (config.ticketPanelDisplayMode === "select") {
       rows.push(new ActionRowBuilder().addComponents(
-        chunk.slice(index, index + 5).map((ticketType) => new ButtonBuilder()
-          .setCustomId(ticketType.buttonId)
-          .setLabel(ticketType.buttonLabel)
-          .setStyle(ButtonStyle.Primary)),
+        new StringSelectMenuBuilder()
+          .setCustomId(TICKET_SELECT_MENU_ID)
+          .setPlaceholder("בחרו נושא לטיקט")
+          .addOptions(chunk.map((ticketType) => ({
+            label: ticketType.buttonLabel.slice(0, 100),
+            value: ticketType.id,
+          }))),
       ));
+    } else {
+      for (let index = 0; index < chunk.length; index += 5) {
+        rows.push(new ActionRowBuilder().addComponents(
+          chunk.slice(index, index + 5).map((ticketType) => new ButtonBuilder()
+            .setCustomId(ticketType.buttonId)
+            .setLabel(ticketType.buttonLabel)
+            .setStyle(getTicketButtonStyle(ticketType.buttonStyle))),
+        ));
+      }
     }
 
     return { embeds: [embed], components: rows, files };
@@ -1058,7 +1087,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  const ticketType = interaction.isButton() ? getTicketTypeByButton(interaction.customId, interaction.guild.id) : null;
+  const ticketType = interaction.isButton()
+    ? getTicketTypeByButton(interaction.customId, interaction.guild.id)
+    : (interaction.isStringSelectMenu() && interaction.customId === TICKET_SELECT_MENU_ID
+      ? getTicketTypeById(interaction.values[0], interaction.guild.id)
+      : null);
   if (ticketType) {
     const config = getGuildConfig(interaction.guild.id);
     const { features, ticketCategoryId, staffRoleIds } = config;

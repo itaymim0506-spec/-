@@ -20,6 +20,7 @@ const DEFAULT_CONFIG = {
   ticketPanelTitle: "פתיחת טיקטים",
   ticketPanelDescription: "לחצו על הכפתור כדי לפתוח טיקט לצוות.",
   ticketPanelImageUrl: "",
+  ticketPanelDisplayMode: "buttons",
   ticketNameMode: "number",
   ticketCounter: 0,
   ticketTranscriptChannelId: "",
@@ -30,6 +31,7 @@ const DEFAULT_CONFIG = {
       channelPrefix: "ticket",
       embedTitle: "טיקט חדש",
       intro: "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+      buttonStyle: "primary",
     },
   ],
   staffRoleIds: [
