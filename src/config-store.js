@@ -44,6 +44,7 @@ const DEFAULT_CONFIG = {
   welcomeTitle: "Welcome!",
   welcomeMessage: "Hey {user}, welcome to **{server}**.",
   welcomeColor: "#2ecc71",
+  welcomeImageUrl: "",
   ticketPanelChannelId: "",
   editBattlePanelChannelId: "1504184944283488328",
 };

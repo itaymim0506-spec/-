@@ -439,7 +439,7 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
-  const { features, welcomeChannelId, welcomeTitle, welcomeMessage, welcomeColor } = getGuildConfig(member.guild.id);
+  const { features, welcomeChannelId, welcomeTitle, welcomeMessage, welcomeColor, welcomeImageUrl } = getGuildConfig(member.guild.id);
   if (!features.welcome || !welcomeChannelId) return;
 
   const channel = await member.guild.channels.fetch(welcomeChannelId).catch(() => null);
@@ -451,6 +451,10 @@ client.on(Events.GuildMemberAdd, async (member) => {
     .setDescription(formatTemplate(welcomeMessage || "Hey {user}, welcome to **{server}**.", member))
     .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
     .setTimestamp();
+
+  if (welcomeImageUrl) {
+    embed.setImage(welcomeImageUrl);
+  }
 
   await channel.send({ embeds: [embed] }).catch(console.error);
 });

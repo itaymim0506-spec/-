@@ -303,6 +303,7 @@ function layout(title, body) {
     .welcome-preview h3 { margin: 0 0 8px; font-size: 18px; }
     .welcome-preview p { margin: 0; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap; }
     .welcome-avatar { width: 72px; height: 72px; border-radius: 50%; border: 2px solid #374151; background: #181b22; }
+    .welcome-preview-image { grid-column: 1 / -1; width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #2a2f3a; display: none; }
     @media (max-width: 780px) {
       .guild-shell { grid-template-columns: 1fr; }
       .side-nav { position: static; }
@@ -360,9 +361,11 @@ function layout(title, body) {
       const welcomeTitle = document.querySelector("[name='welcomeTitle']");
       const welcomeMessage = document.querySelector("[name='welcomeMessage']");
       const welcomeColor = document.querySelector("[name='welcomeColor']");
+      const welcomeImageUrl = document.querySelector("[name='welcomeImageUrl']");
       const welcomePreview = document.querySelector("[data-welcome-preview]");
       const welcomePreviewTitle = document.querySelector("[data-welcome-preview-title]");
       const welcomePreviewMessage = document.querySelector("[data-welcome-preview-message]");
+      const welcomePreviewImage = document.querySelector("[data-welcome-preview-image]");
 
       function renderWelcomePreview() {
         if (!welcomePreview) return;
@@ -379,9 +382,15 @@ function layout(title, body) {
         welcomePreview.style.borderRightColor = welcomeColor?.value || "#2ecc71";
         welcomePreviewTitle.textContent = welcomeTitle?.value || "Welcome!";
         welcomePreviewMessage.textContent = message || "Hey @Itay, welcome to בוט לחם.";
+
+        if (welcomePreviewImage) {
+          const imageUrl = welcomeImageUrl?.value?.trim();
+          welcomePreviewImage.style.display = imageUrl ? "block" : "none";
+          if (imageUrl) welcomePreviewImage.src = imageUrl;
+        }
       }
 
-      [welcomeTitle, welcomeMessage, welcomeColor].forEach((field) => {
+      [welcomeTitle, welcomeMessage, welcomeColor, welcomeImageUrl].forEach((field) => {
         field?.addEventListener("input", renderWelcomePreview);
       });
 
@@ -681,12 +690,15 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <p class="muted">אפשר להשתמש ב־{user}, {username}, {server} בתוך ההודעה.</p>
           <label>צבע ההודעה</label>
           ${colorInput("welcomeColor", config.welcomeColor)}
+          <label>תמונה בהודעת Welcome</label>
+          ${textInput("welcomeImageUrl", config.welcomeImageUrl, "https://example.com/image.png")}
           <div class="welcome-preview" data-welcome-preview>
             <div>
               <h3 data-welcome-preview-title>${escapeHtml(config.welcomeTitle || "Welcome!")}</h3>
               <p data-welcome-preview-message>${escapeHtml(config.welcomeMessage || "Hey {user}, welcome to **{server}**.")}</p>
             </div>
             <img class="welcome-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="תמונת פרופיל">
+            <img class="welcome-preview-image" data-welcome-preview-image src="${escapeHtml(config.welcomeImageUrl || "")}" alt="תמונת Welcome">
           </div>
         </div>
 
@@ -727,6 +739,7 @@ app.post("/guild/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
     welcomeTitle: req.body.welcomeTitle.trim(),
     welcomeMessage: req.body.welcomeMessage.trim(),
     welcomeColor: req.body.welcomeColor.trim(),
+    welcomeImageUrl: req.body.welcomeImageUrl.trim(),
     editBattlePanelChannelId: req.body.editBattlePanelChannelId.trim(),
   });
   res.redirect(`/guild/${req.params.guildId}`);
