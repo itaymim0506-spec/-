@@ -14,7 +14,7 @@ const {
   GatewayIntentBits,
 } = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
-const { setGiveaway } = require("./giveaway-store");
+const { getGiveaway, readGiveaways, setGiveaway } = require("./giveaway-store");
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
 const BASE_URL = (process.env.DASHBOARD_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
@@ -185,14 +185,19 @@ function buildWelcomeMessage(guild) {
 }
 
 function buildGiveawayMessage(giveaway) {
+  const ended = Boolean(giveaway.ended);
+  const winnersText = giveaway.winnerIds?.length
+    ? giveaway.winnerIds.map((userId) => `<@${userId}>`).join(", ")
+    : "עדיין אין";
+
   const embed = new EmbedBuilder()
-    .setColor(0xf1c40f)
+    .setColor(ended ? 0x2ecc71 : 0xf1c40f)
     .setTitle(`🎉 ${giveaway.prize}`)
     .setDescription(giveaway.description || "לחצו על הכפתור כדי להשתתף בהגרלה.")
     .addFields(
       { name: "זוכים", value: String(giveaway.winnerCount || 1), inline: true },
-      { name: "משתתפים", value: "0", inline: true },
-      { name: "נגמר", value: `<t:${Math.floor(giveaway.endAt / 1000)}:R>`, inline: false },
+      { name: "משתתפים", value: String(giveaway.participants?.length || 0), inline: true },
+      { name: ended ? "זוכים שנבחרו" : "נגמר", value: ended ? winnersText : `<t:${Math.floor(giveaway.endAt / 1000)}:R>`, inline: false },
     )
     .setTimestamp();
 
@@ -204,11 +209,26 @@ function buildGiveawayMessage(giveaway) {
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`${GIVEAWAY_JOIN_PREFIX}${giveaway.id}`)
-          .setLabel("השתתף בהגרלה")
-          .setStyle(ButtonStyle.Success),
+          .setLabel(ended ? "ההגרלה נגמרה" : "השתתף בהגרלה")
+          .setStyle(ended ? ButtonStyle.Secondary : ButtonStyle.Success)
+          .setDisabled(ended),
       ),
     ],
   };
+}
+
+function pickGiveawayWinners(participants, winnerCount, previousWinnerIds = []) {
+  const uniqueParticipants = [...new Set(participants || [])];
+  const previousWinnerSet = new Set(previousWinnerIds || []);
+  let pool = uniqueParticipants.filter((userId) => !previousWinnerSet.has(userId));
+  if (pool.length < Number(winnerCount || 1)) pool = uniqueParticipants;
+
+  const winners = [];
+  while (pool.length && winners.length < Number(winnerCount || 1)) {
+    const index = Math.floor(Math.random() * pool.length);
+    winners.push(pool.splice(index, 1)[0]);
+  }
+  return winners;
 }
 
 function buildGuildConfigFromBody(body) {
@@ -883,6 +903,13 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   const categoryOptions = getCategoryOptions(guild);
   const textChannelOptions = getTextChannelOptions(guild);
   const roleOptions = getRoleOptions(guild);
+  const endedGiveaways = Object.values(readGiveaways())
+    .filter((giveaway) => giveaway.guildId === guildId && giveaway.ended)
+    .sort((a, b) => Number(b.endedAt || b.endAt || 0) - Number(a.endedAt || a.endAt || 0));
+  const endedGiveawayOptions = endedGiveaways.map((giveaway) => ({
+    id: giveaway.id,
+    label: `${giveaway.prize} - ${giveaway.winnerIds?.length ? giveaway.winnerIds.map((userId) => `@${userId}`).join(", ") : "אין זוכים"}`,
+  }));
 
   res.send(layout("Guild Settings", `
     <form method="post" class="guild-shell">
@@ -1042,6 +1069,11 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <label>תמונה להגרלה</label>
           ${textInput("giveawayImageUrl", config.giveawayImageUrl, "https://example.com/image.png")}
           <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-giveaway" formmethod="post">שלח Giveaway עכשיו</button>
+
+          <h3>רירול לזוכה</h3>
+          <label>בחר הגרלה שהסתיימה</label>
+          ${select("rerollGiveawayId", endedGiveawayOptions, "", endedGiveawayOptions.length ? "בחר הגרלה" : "אין הגרלות שהסתיימו")}
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/reroll-giveaway" formmethod="post">עשה רירול לזוכה</button>
         </div>
 
         <div id="edit-battles" class="panel-section card">
@@ -1144,6 +1176,42 @@ app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, async 
   setGiveaway(giveawayId, giveaway);
 
   res.send(sendResultPage("נשלח", "ה־Giveaway נשלח והבוט יבחר זוכים אוטומטית בזמן שהגדרת.", guildId, "giveaways"));
+});
+
+app.post("/guild/:guildId/reroll-giveaway", requireAuth, requireGuildAdmin, async (req, res) => {
+  const { guildId } = req.params;
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body));
+
+  const giveaway = getGiveaway(req.body.rerollGiveawayId);
+  if (!giveaway || giveaway.guildId !== guildId || !giveaway.ended) {
+    res.status(400).send(sendResultPage("לא בוצע", "צריך לבחור הגרלה שהסתיימה.", guildId, "giveaways"));
+    return;
+  }
+
+  const newWinners = pickGiveawayWinners(giveaway.participants, Number(giveaway.winnerCount || 1), giveaway.winnerIds);
+  if (!newWinners.length) {
+    res.status(400).send(sendResultPage("לא בוצע", "אין משתתפים שאפשר לבחור מהם זוכה.", guildId, "giveaways"));
+    return;
+  }
+
+  const updatedGiveaway = {
+    ...giveaway,
+    winnerIds: newWinners,
+    rerolledAt: Date.now(),
+  };
+  setGiveaway(giveaway.id, updatedGiveaway);
+
+  const guild = client.guilds.cache.get(guildId);
+  const channel = guild ? await getWritableTextChannel(guild, giveaway.channelId) : null;
+  if (channel) {
+    const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+    if (message) {
+      await message.edit(buildGiveawayMessage(updatedGiveaway)).catch(console.error);
+    }
+    await channel.send(`רירול להגרלה **${giveaway.prize}**! הזוכים החדשים: ${newWinners.map((userId) => `<@${userId}>`).join(", ")}`).catch(console.error);
+  }
+
+  res.send(sendResultPage("רירול בוצע", "נבחר זוכה חדש וההודעה עודכנה בדיסקורד.", guildId, "giveaways"));
 });
 
 app.listen(PORT, () => {
