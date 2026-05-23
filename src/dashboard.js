@@ -196,7 +196,11 @@ function layout(title, body) {
   <title>${title} | בוט לחם</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #111318; color: #f4f6fb; }
-    header { padding: 18px 24px; background: #181b22; border-bottom: 1px solid #2a2f3a; }
+    header { padding: 16px 24px; background: #181b22; border-bottom: 1px solid #2a2f3a; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: #7c3aed; color: #fff; font-weight: 800; }
+    .brand-name { display: block; font-size: 20px; font-weight: 800; color: #fff; }
+    .brand-sub { display: block; color: #94a3b8; font-size: 12px; margin-top: 2px; }
     main { max-width: 980px; margin: 0 auto; padding: 24px; }
     a { color: #a78bfa; text-decoration: none; }
     label { display: block; margin: 16px 0 6px; color: #cbd5e1; }
@@ -219,6 +223,8 @@ function layout(title, body) {
     .home-hero { padding: 28px; border-radius: 8px; border: 1px solid #7c3aed; background: linear-gradient(135deg, #181b22 0%, #251a3f 55%, #181b22 100%); }
     .home-title { margin: 0; font-size: 42px; line-height: 1.1; }
     .home-subtitle { max-width: 680px; color: #cbd5e1; font-size: 16px; }
+    .login-hero { border-color: #7c3aed; background: linear-gradient(135deg, #181b22 0%, #251a3f 60%, #181b22 100%); }
+    .login-title { margin: 0; font-size: 40px; }
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 18px; }
     .stat { padding: 14px; background: #111318; border: 1px solid #2a2f3a; border-radius: 8px; }
     .stat strong { display: block; font-size: 20px; margin-bottom: 4px; }
@@ -231,7 +237,15 @@ function layout(title, body) {
   </style>
 </head>
 <body>
-  <header><strong>Discord Bot Dashboard</strong></header>
+  <header>
+    <div class="brand">
+      <span class="brand-mark">לחם</span>
+      <span>
+        <span class="brand-name">בוט לחם</span>
+        <span class="brand-sub">דאשבורד ניהול דיסקורד</span>
+      </span>
+    </div>
+  </header>
   <main>${body}</main>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -260,11 +274,11 @@ app.get("/login", (req, res, next) => {
   if (req.route.path !== "/login") return next();
   const isDiscordLoginReady = Boolean(process.env.CLIENT_ID && DISCORD_CLIENT_SECRET);
   res.send(layout("Login", `
-    <div class="card">
-      <h2>Discord Bot Dashboard</h2>
-      <p class="muted">Login with Discord. Only users with Administrator in a server can manage that server.</p>
-      <a class="button" href="/auth/discord">Login with Discord</a>
-      <a class="button" href="/invite">Add bot to server</a>
+    <div class="card login-hero">
+      <h1 class="login-title">בוט לחם</h1>
+      <p class="home-subtitle">הדאשבורד הרשמי לניהול הבוט לחם: טיקטים, אימות, הודעות ברוכים הבאים, עזרה וקרבות אדיטים.</p>
+      <a class="button" href="/auth/discord">כניסה עם Discord</a>
+      <a class="button" href="/invite">הוספת בוט לחם לשרת</a>
       ${isDiscordLoginReady ? "" : `
         <p class="muted">Discord login needs one more setup step before it can finish logging in.</p>
         <p>Add <code>DISCORD_CLIENT_SECRET</code> to your <code>.env</code> file.</p>
@@ -411,7 +425,8 @@ app.get("/", requireAuth, async (req, res) => {
   const guilds = [...client.guilds.cache.values()].filter((guild) => session.adminGuildIds.includes(guild.id));
   res.send(layout("Dashboard", `
     <div class="card">
-      <h2>בחר שרת</h2>
+      <h1>בוט לחם</h1>
+      <p class="muted">בחר את השרת שבו תרצה לנהל את ההגדרות של בוט לחם.</p>
       <div class="grid">
         ${guilds.map((guild) => `<a class="card" href="/guild/${guild.id}">${guild.name}<br><span class="muted">${guild.id}</span></a>`).join("") || "<p>הבוט לא נמצא באף שרת.</p>"}
       </div>
@@ -459,7 +474,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <div id="home" class="panel-section active">
           <div class="home-hero">
             <h1 class="home-title">בוט לחם</h1>
-            <p class="home-subtitle">דף הבית של ניהול השרת. מכאן עוברים למדורים בצד ומגדירים רק את מה שצריך בלי להתבלבל בין טיקטים, אימות, Welcome ושאר המערכות.</p>
+            <p class="home-subtitle">ניהול השרת דרך הדאשבורד של לחם. מכאן עוברים למדורים בצד ומגדירים טיקטים, אימות, Welcome ושאר המערכות בלי להתבלבל.</p>
             <div class="stat-grid">
               <div class="stat"><strong>${config.features.tickets ? "פעיל" : "כבוי"}</strong><span class="muted">מערכת טיקטים</span></div>
               <div class="stat"><strong>${config.features.verify ? "פעיל" : "כבוי"}</strong><span class="muted">Verify</span></div>
