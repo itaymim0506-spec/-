@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+*.err.log
+*.zip
+app.log
+app.err.log
+bot.log
+bot.err.log
+dashboard.log
+dashboard.err.log
