@@ -654,6 +654,7 @@ function layout(title, body, session = null) {
     label { display: block; margin: 16px 0 6px; color: #cbd5e1; }
     input, textarea, select { width: 100%; box-sizing: border-box; padding: 11px; border-radius: 6px; border: 1px solid #374151; background: #0f1117; color: #f4f6fb; }
     input[type="checkbox"] { width: auto; margin-left: 8px; }
+    html[dir="ltr"] input[type="checkbox"] { margin-left: 0; margin-right: 8px; }
     input[type="color"] { height: 48px; padding: 4px; cursor: pointer; }
     textarea { min-height: 120px; direction: ltr; }
     button, .button { display: inline-block; margin-top: 18px; padding: 11px 16px; border: 0; border-radius: 6px; background: #7c3aed; color: white; cursor: pointer; }
@@ -690,6 +691,8 @@ function layout(title, body, session = null) {
     .verify-preview p { margin: 0 0 12px; color: #f4f6fb; line-height: 1.5; white-space: pre-wrap; }
     .verify-preview img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; border: 1px solid #2a2f3a; display: none; margin-bottom: 12px; }
     .verify-preview-button { display: inline-block; padding: 9px 14px; border-radius: 6px; background: #2ecc71; color: #fff; font-weight: 700; }
+    html[dir="ltr"] .profile-dropdown { left: auto; right: 0; }
+    html[dir="ltr"] .legal-links a { margin-left: 0; margin-right: 14px; }
     @media (max-width: 780px) {
       .guild-shell { grid-template-columns: 1fr; }
       .side-nav { position: static; }
@@ -838,6 +841,7 @@ function layout(title, body, session = null) {
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
   </script>
+  <script src="/assets/i18n.js"></script>
 </body>
 </html>`;
 }
