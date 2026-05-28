@@ -1,19 +1,7 @@
 (() => {
-  const languages = navigator.languages?.length ? navigator.languages : [navigator.language || ""];
-  const forcedLanguage = new URLSearchParams(location.search).get("lang");
-  if (forcedLanguage === "he" || forcedLanguage === "en") {
-    localStorage.setItem("lehem_dashboard_language", forcedLanguage);
-  }
-  const savedLanguage = localStorage.getItem("lehem_dashboard_language");
-  const selectedLanguage = forcedLanguage || savedLanguage || "";
-  const isHebrew = selectedLanguage
-    ? selectedLanguage.toLowerCase().startsWith("he")
-    : languages.some((language) => String(language).toLowerCase().startsWith("he"));
-
-  document.documentElement.lang = isHebrew ? "he" : "en";
-  document.documentElement.dir = isHebrew ? "rtl" : "ltr";
-
-  if (isHebrew) return;
+  localStorage.setItem("lehem_dashboard_language", "en");
+  document.documentElement.lang = "en";
+  document.documentElement.dir = "ltr";
 
   const translations = new Map(Object.entries({
     "בוט לחם": "Lehem Bot",

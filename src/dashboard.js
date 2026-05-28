@@ -618,17 +618,17 @@ function getRoleOptions(guild) {
 function layout(title, body, session = null) {
   const user = session?.user;
   return `<!doctype html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="בוט לחם - דאשבורד לניהול בוט דיסקורד, טיקטים, אימות, הודעות ברוכים הבאים ועזרה לצוות.">
-  <meta name="keywords" content="בוט לחם, לחם בוט, discord bot, בוט דיסקורד, טיקטים דיסקורד, dashboard discord">
+  <meta name="description" content="Lehem Bot - Discord bot dashboard for tickets, verification, welcome messages, giveaways, moderation, music, and staff tools.">
+  <meta name="keywords" content="Lehem Bot, discord bot, discord dashboard, tickets discord, verification discord, moderation bot">
   <meta name="google-site-verification" content="t_E1zoSmpZ9zBm0DRAKltCWtZypOImgrNE-quWhemQA">
-  <meta property="og:title" content="בוט לחם">
-  <meta property="og:description" content="דאשבורד לניהול בוט דיסקורד של לחם.">
+  <meta property="og:title" content="Lehem Bot">
+  <meta property="og:description" content="Dashboard for managing the Lehem Discord bot.">
   <meta property="og:type" content="website">
-  <title>${title} | בוט לחם</title>
+  <title>${title} | Lehem Bot</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #111318; color: #f4f6fb; }
     header { padding: 16px 24px; background: #181b22; border-bottom: 1px solid #2a2f3a; }
