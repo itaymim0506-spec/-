@@ -668,13 +668,13 @@ function layout(title, body, session = null) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Bread - Discord bot dashboard for tickets, verification, welcome messages, giveaways, moderation, music, and staff tools.">
-  <meta name="keywords" content="Bread, discord bot, discord dashboard, tickets discord, verification discord, moderation bot">
+  <meta name="description" content="Bread Bot - Discord bot dashboard for tickets, verification, welcome messages, giveaways, moderation, music, and staff tools.">
+  <meta name="keywords" content="Bread Bot, Bread, discord bot, discord dashboard, tickets discord, verification discord, moderation bot">
   <meta name="google-site-verification" content="t_E1zoSmpZ9zBm0DRAKltCWtZypOImgrNE-quWhemQA">
-  <meta property="og:title" content="Bread">
-  <meta property="og:description" content="Dashboard for managing the Bread Discord bot.">
+  <meta property="og:title" content="Bread Bot">
+  <meta property="og:description" content="Dashboard for managing the Bread Bot Discord bot.">
   <meta property="og:type" content="website">
-  <title>${title} | Bread</title>
+  <title>${title} | Bread Bot</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #111318; color: #f4f6fb; }
     header { padding: 16px 24px; background: #181b22; border-bottom: 1px solid #2a2f3a; }
@@ -754,9 +754,9 @@ function layout(title, body, session = null) {
   <header>
     <div class="topbar">
       <div class="brand">
-        <img class="brand-mark" src="/assets/bot-logo.jpg" alt="Bread">
+        <img class="brand-mark" src="/assets/bot-logo.jpg" alt="Bread Bot">
         <span>
-          <span class="brand-name">Bread</span>
+          <span class="brand-name">Bread Bot</span>
           <span class="brand-sub">Discord management dashboard</span>
         </span>
       </div>
@@ -846,7 +846,7 @@ function layout(title, body, session = null) {
         const replacements = {
           "{user}": "@Itay",
           "{username}": "Itay",
-          "{server}": "Bread",
+          "{server}": "Bread Bot",
         };
         let message = welcomeMessage?.value || "";
         Object.entries(replacements).forEach(([key, value]) => {
@@ -855,7 +855,7 @@ function layout(title, body, session = null) {
 
         welcomePreview.style.borderRightColor = welcomeColor?.value || "#2ecc71";
         welcomePreviewTitle.textContent = welcomeTitle?.value || "Welcome!";
-        welcomePreviewMessage.textContent = message || "Hey @Itay, welcome to Bread.";
+        welcomePreviewMessage.textContent = message || "Hey @Itay, welcome to Bread Bot.";
 
         if (welcomePreviewImage) {
           const imageUrl = welcomeImageUrl?.value?.trim();
@@ -899,7 +899,7 @@ function layout(title, body, session = null) {
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
   </script>
-  <script src="/assets/i18n.js?v=bread-1"></script>
+  <script src="/assets/i18n.js?v=bread-bot-1"></script>
 </body>
 </html>`;
 }
@@ -909,10 +909,10 @@ app.get("/login", (req, res, next) => {
   const isDiscordLoginReady = Boolean(process.env.CLIENT_ID && DISCORD_CLIENT_SECRET);
   res.send(layout("Login", `
     <div class="card login-hero">
-      <h1 class="login-title">Bread</h1>
-      <p class="home-subtitle">The official dashboard for managing Bread: tickets, verification, welcome messages, help, and edit battles.</p>
+      <h1 class="login-title">Bread Bot</h1>
+      <p class="home-subtitle">The official dashboard for managing Bread Bot: tickets, verification, welcome messages, help, and edit battles.</p>
       <a class="button" href="/auth/discord">Login with Discord</a>
-      <a class="button" href="/invite">Add Bread to your server</a>
+      <a class="button" href="/invite">Add Bread Bot to your server</a>
       ${isDiscordLoginReady ? "" : `
         <p class="muted">Discord login needs one more setup step before it can finish logging in.</p>
         <p>Add <code>DISCORD_CLIENT_SECRET</code> to your <code>.env</code> file.</p>
@@ -950,9 +950,9 @@ app.get("/terms", (req, res) => {
     <div class="card">
       <h1>Terms of Service</h1>
       <p class="muted">Last updated: May 23, 2026</p>
-      <p>By inviting or using Bread, you agree to these terms.</p>
+      <p>By inviting or using Bread Bot, you agree to these terms.</p>
       <h2>Use of the Bot</h2>
-      <p>Bread provides Discord server tools such as tickets, verification, welcome messages, giveaways, moderation, music, and dashboard settings. Server administrators are responsible for how they configure and use the bot in their servers.</p>
+      <p>Bread Bot provides Discord server tools such as tickets, verification, welcome messages, giveaways, moderation, music, and dashboard settings. Server administrators are responsible for how they configure and use the bot in their servers.</p>
       <h2>Permissions</h2>
       <p>The bot may require Discord permissions such as managing roles, channels, messages, and voice connections. Only grant permissions that you are comfortable giving to the bot.</p>
       <h2>Content and Conduct</h2>
@@ -974,7 +974,7 @@ app.get("/privacy", (req, res) => {
     <div class="card">
       <h1>Privacy Policy</h1>
       <p class="muted">Last updated: May 23, 2026</p>
-      <p>This policy explains what information Bread stores and uses.</p>
+      <p>This policy explains what information Bread Bot stores and uses.</p>
       <h2>Information We Store</h2>
       <p>The bot may store Discord IDs for servers, channels, roles, users, ticket settings, giveaway participants, and dashboard configuration. Ticket transcripts may include message content when transcript logging is enabled by server administrators.</p>
       <h2>How Information Is Used</h2>
@@ -1112,8 +1112,8 @@ app.get("/", requireAuth, async (req, res) => {
   const guilds = [...client.guilds.cache.values()].filter((guild) => session.adminGuildIds.includes(guild.id));
   res.send(layout("Dashboard", `
     <div class="card">
-      <h1>Bread</h1>
-      <p class="muted">Choose the server where you want to manage Bread settings.</p>
+      <h1>Bread Bot</h1>
+      <p class="muted">Choose the server where you want to manage Bread Bot settings.</p>
       <div class="grid">
         ${guilds.map((guild) => `<a class="card" href="/guild/${guild.id}">${guild.name}<br><span class="muted">${guild.id}</span></a>`).join("") || "<p>הבוט לא נמצא באף שרת.</p>"}
       </div>
@@ -1174,8 +1174,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         ${savedMessage}
         <div id="home" class="panel-section active">
           <div class="home-hero">
-            <h1 class="home-title">Bread</h1>
-            <p class="home-subtitle">Manage your server through the Bread dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.</p>
+            <h1 class="home-title">Bread Bot</h1>
+            <p class="home-subtitle">Manage your server through the Bread Bot dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.</p>
             <div class="stat-grid">
               <div class="stat"><strong>${config.features.tickets ? "פעיל" : "כבוי"}</strong><span class="muted">מערכת טיקטים</span></div>
               <div class="stat"><strong>${config.features.verify ? "פעיל" : "כבוי"}</strong><span class="muted">Verify</span></div>
@@ -1542,5 +1542,6 @@ if (DISCORD_TOKEN) {
 } else {
   console.error("Missing DISCORD_TOKEN. Dashboard is running, but Discord server list will be empty.");
 }
+
 
 

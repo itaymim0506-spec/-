@@ -4,13 +4,13 @@
   document.documentElement.dir = "ltr";
 
   const translations = new Map(Object.entries({
-    "בוט לחם": "Bread",
+    "בוט לחם": "Bread Bot",
     "דאשבורד ניהול דיסקורד": "Discord management dashboard",
     "החלף חשבון": "Switch account",
     "התנתק": "Log out",
     "כניסה עם Discord": "Login with Discord",
-    "הוספת בוט לחם לשרת": "Add Bread to your server",
-    "הדאשבורד הרשמי לניהול הבוט לחם: טיקטים, אימות, הודעות ברוכים הבאים, עזרה וקרבות אדיטים.": "The official dashboard for managing Bread: tickets, verification, welcome messages, help, and edit battles.",
+    "הוספת בוט לחם לשרת": "Add Bread Bot to your server",
+    "הדאשבורד הרשמי לניהול הבוט לחם: טיקטים, אימות, הודעות ברוכים הבאים, עזרה וקרבות אדיטים.": "The official dashboard for managing Bread Bot: tickets, verification, welcome messages, help, and edit battles.",
     "השרתים שלי": "My servers",
     "בחר שרת כדי לערוך את ההגדרות שלו. רק שרתים שבהם יש לך Administrator מופיעים כאן.": "Choose a server to edit its settings. Only servers where you have Administrator permission appear here.",
     "אין שרתים זמינים": "No servers available",
@@ -29,7 +29,7 @@
     "עזרה": "Help",
     "חדר קרב": "Battle Room",
     "שמור הגדרות": "Save settings",
-    "ניהול השרת דרך הדאשבורד של לחם. מכאן עוברים למדורים בצד ומגדירים טיקטים, אימות, Welcome ושאר המערכות בלי להתבלבל.": "Manage your server through the Bread dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.",
+    "ניהול השרת דרך הדאשבורד של לחם. מכאן עוברים למדורים בצד ומגדירים טיקטים, אימות, Welcome ושאר המערכות בלי להתבלבל.": "Manage your server through the Bread Bot dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.",
     "פעיל": "Enabled",
     "כבוי": "Disabled",
     "מערכת טיקטים": "Ticket system",
@@ -169,21 +169,21 @@
     "תכתוב כאן מה יופיע למשתמש בתוך הטיקט.": "Write what the user will see inside the ticket.",
     "מחק סוג טיקט": "Delete ticket type",
     "חזרה": "Back",
-    "בוט לחם": "Bread",
+    "בוט לחם": "Bread Bot",
     "דאשבורד ניהול דיסקורד": "Discord management dashboard",
     "החלף חשבון": "Switch account",
     "התנתק": "Log out",
-    "בוט לחם.": "Bread.",
-    "הדאשבורד הרשמי לניהול הבוט לחם: טיקטים, אימות, הודעות ברוכים הבאים, עזרה וקרבות אדיטים.": "The official dashboard for managing Bread: tickets, verification, welcome messages, help, and edit battles.",
+    "בוט לחם.": "Bread Bot.",
+    "הדאשבורד הרשמי לניהול הבוט לחם: טיקטים, אימות, הודעות ברוכים הבאים, עזרה וקרבות אדיטים.": "The official dashboard for managing Bread Bot: tickets, verification, welcome messages, help, and edit battles.",
     "כניסה עם Discord": "Login with Discord",
-    "הוספת בוט לחם לשרת": "Add Bread to your server",
+    "הוספת בוט לחם לשרת": "Add Bread Bot to your server",
     "כניסה לדאשבורד": "Dashboard login",
     "סיסמה": "Password",
     "כניסה": "Login",
     "ברירת מחדל: admin. מומלץ להגדיר DASHBOARD_PASSWORD בקובץ .env.": "Default: admin. It is recommended to set DASHBOARD_PASSWORD in the .env file.",
     "סיסמה לא נכונה.": "Incorrect password.",
     "נסה שוב": "Try again",
-    "בחר את השרת שבו תרצה לנהל את ההגדרות של בוט לחם.": "Choose the server where you want to manage Bread settings.",
+    "בחר את השרת שבו תרצה לנהל את ההגדרות של בוט לחם.": "Choose the server where you want to manage Bread Bot settings.",
     "הבוט לא נמצא באף שרת.": "The bot is not in any server.",
     "נשמר.": "Saved.",
     "ההגדרות עודכנו.": "Settings updated.",
@@ -200,7 +200,7 @@
     "אבטחה": "Security",
     "עזרה": "Help",
     "שמור הגדרות": "Save settings",
-    "ניהול השרת דרך הדאשבורד של לחם. מכאן עוברים למדורים בצד ומגדירים טיקטים, אימות, Welcome ושאר המערכות בלי להתבלבל.": "Manage your server through the Bread dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.",
+    "ניהול השרת דרך הדאשבורד של לחם. מכאן עוברים למדורים בצד ומגדירים טיקטים, אימות, Welcome ושאר המערכות בלי להתבלבל.": "Manage your server through the Bread Bot dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.",
     "פעיל": "Enabled",
     "כבוי": "Disabled",
     "מערכת טיקטים": "Ticket system",
@@ -380,4 +380,5 @@
     observer.observe(document.body, { childList: true, subtree: true });
   });
 })();
+
 
