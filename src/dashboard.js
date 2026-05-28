@@ -841,7 +841,7 @@ function layout(title, body, session = null) {
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
   </script>
-  <script src="/assets/i18n.js"></script>
+  <script src="/assets/i18n.js?v=english-only-2"></script>
 </body>
 </html>`;
 }
