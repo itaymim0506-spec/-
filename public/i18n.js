@@ -347,10 +347,30 @@
     });
   }
 
+  function translateFormValues(root) {
+    root.querySelectorAll("textarea, input:not([type='hidden']):not([type='file']):not([type='color']), option").forEach((element) => {
+      if (element.tagName === "OPTION") {
+        const translatedText = translate(element.textContent);
+        if (translatedText !== element.textContent) element.textContent = translatedText;
+        return;
+      }
+
+      const value = element.value;
+      if (!value || !/[\u0590-\u05FF]/.test(value)) return;
+
+      const translatedValue = translate(value);
+      if (translatedValue !== value) {
+        element.value = translatedValue;
+        if (element.tagName === "TEXTAREA") element.textContent = translatedValue;
+      }
+    });
+  }
+
   function translatePage() {
     document.body.classList.add("is-english");
     translateTextNodes(document.body);
     translateAttributes(document.body);
+    translateFormValues(document.body);
   }
 
   document.addEventListener("DOMContentLoaded", () => {

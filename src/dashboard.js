@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 
 const crypto = require("crypto");
 const fs = require("fs");
@@ -156,7 +156,7 @@ function buildTicketPanelMessages(guildId) {
     const embed = new EmbedBuilder()
       .setColor(0x8b2cff)
       .setTitle(chunks.length > 1 ? `${config.ticketPanelTitle || "פתיחת טיקטים"} ${chunkIndex + 1}` : (config.ticketPanelTitle || "פתיחת טיקטים"))
-      .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
+      .setDescription(config.ticketPanelDescription || "Click the button to open a ticket for the staff.");
 
     const files = [];
     if (config.ticketPanelImageUrl) {
@@ -195,7 +195,7 @@ function buildTicketPanelMessages(guildId) {
 function buildVerifyPanel(guildId) {
   const config = getGuildConfig(guildId);
   const components = [
-    { type: 10, content: config.verifyText || "כדי להיות מאומתים לחצו על הכפתור" },
+    { type: 10, content: config.verifyText || "Click the button to get verified" },
   ];
 
   if (config.verifyImageUrl) {
@@ -254,7 +254,7 @@ function buildGiveawayMessage(giveaway) {
   const embed = new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xf1c40f)
     .setTitle(`🎉 ${giveaway.prize}`)
-    .setDescription(giveaway.description || "לחצו על הכפתור כדי להשתתף בהגרלה.")
+    .setDescription(giveaway.description || "Click the button to join the giveaway.")
     .addFields(
       { name: "זוכים", value: String(giveaway.winnerCount || 1), inline: true },
       { name: "משתתפים", value: String(giveaway.participants?.length || 0), inline: true },
@@ -324,6 +324,46 @@ function uploadedImageUrl(files, fieldName, fallbackValue) {
   return `${BASE_URL}/uploads/${uploadedFile.filename}`;
 }
 
+const ENGLISH_TEXT = new Map(Object.entries({
+  "פתיחת טיקטים": "Open tickets",
+  "לחצו על הכפתור כדי לפתוח טיקט לצוות.": "Click the button to open a ticket for the staff.",
+  "פתח טיקט": "Open ticket",
+  "טיקט חדש": "New ticket",
+  "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.": "Write what you need help with. Staff will respond as soon as possible.",
+  "תכתוב כאן מה יופיע למשתמש בתוך הטיקט.": "Write what the user will see inside the ticket.",
+  "כדי להיות מאומתים לחצו על הכפתור": "Click the button to get verified",
+  "לחצו על הכפתור כדי להשתתף בהגרלה.": "Click the button to join the giveaway.",
+  "פרס חדש": "New prize",
+  "ההודעה נמחקה כי היא כוללת מילה אסורה.": "The message was deleted because it contains a blocked word.",
+  "נא לא להספים.": "Please do not spam.",
+  "כחול": "Blue",
+  "אפור": "Gray",
+  "ירוק": "Green",
+  "אדום": "Red",
+  "כפתורים": "Buttons",
+  "רשימה נפתחת": "Dropdown",
+  "לפי מספר הטיקט": "By ticket number",
+  "לפי שם המשתמש": "By username",
+  "לפי הנושא שעליו פתחו": "By selected topic",
+  "בחר חדר לשליחה מהאתר": "Choose a channel to send from the website",
+  "בחר חדר לשליחת הגרלה": "Choose a channel for the giveaway",
+  "בחר הגרלה": "Choose giveaway",
+  "אין הגרלות שהסתיימו": "No ended giveaways",
+  "החדר שבו מפעילים": "The channel where the panel appears",
+  "החדר שבו מריצים /setup-ticket": "The channel where the ticket panel appears",
+  "צור אוטומטית / בלי קטגוריה": "Create automatically / no category",
+  "לא לשלוח Transcript": "Do not send transcript",
+  "כולם יכולים לפתוח": "Everyone can open",
+  "לא מוגדר": "Not configured",
+  "לא לשלוח לוגים": "Do not send logs",
+}));
+
+function englishText(value) {
+  const rawValue = String(value ?? "");
+  const trimmedValue = rawValue.trim();
+  return ENGLISH_TEXT.get(trimmedValue) || rawValue;
+}
+
 function buildGuildConfigFromBody(body, files = {}) {
   return {
     features: {
@@ -339,8 +379,8 @@ function buildGuildConfigFromBody(body, files = {}) {
     ticketCategoryId: trimField(body.ticketCategoryId),
     ticketOpenRoleId: trimField(body.ticketOpenRoleId),
     ticketPanelChannelId: trimField(body.ticketPanelChannelId),
-    ticketPanelTitle: trimField(body.ticketPanelTitle),
-    ticketPanelDescription: trimField(body.ticketPanelDescription),
+    ticketPanelTitle: englishText(trimField(body.ticketPanelTitle)),
+    ticketPanelDescription: englishText(trimField(body.ticketPanelDescription)),
     ticketPanelImageUrl: uploadedImageUrl(files, "ticketPanelImageFile", body.ticketPanelImageUrl),
     ticketPanelDisplayMode: ["buttons", "select"].includes(body.ticketPanelDisplayMode)
       ? body.ticketPanelDisplayMode
@@ -351,28 +391,28 @@ function buildGuildConfigFromBody(body, files = {}) {
     staffRoleIds: parseIds(body.staffRoleIds),
     verifiedRoleId: trimField(body.verifiedRoleId),
     verifyPanelChannelId: trimField(body.verifyPanelChannelId),
-    verifyText: trimField(body.verifyText),
-    verifyButtonLabel: trimField(body.verifyButtonLabel),
+    verifyText: englishText(trimField(body.verifyText)),
+    verifyButtonLabel: englishText(trimField(body.verifyButtonLabel)),
     verifyAccentColor: trimField(body.verifyAccentColor),
     verifyImageUrl: uploadedImageUrl(files, "verifyImageFile", body.verifyImageUrl),
     welcomeChannelId: trimField(body.welcomeChannelId),
-    welcomeTitle: trimField(body.welcomeTitle),
-    welcomeMessage: trimField(body.welcomeMessage),
+    welcomeTitle: englishText(trimField(body.welcomeTitle)),
+    welcomeMessage: englishText(trimField(body.welcomeMessage)),
     welcomeColor: trimField(body.welcomeColor),
     welcomeImageUrl: uploadedImageUrl(files, "welcomeImageFile", body.welcomeImageUrl),
     editBattlePanelChannelId: trimField(body.editBattlePanelChannelId),
     giveawayChannelId: trimField(body.giveawayChannelId),
-    giveawayPrize: trimField(body.giveawayPrize),
-    giveawayDescription: trimField(body.giveawayDescription),
+    giveawayPrize: englishText(trimField(body.giveawayPrize)),
+    giveawayDescription: englishText(trimField(body.giveawayDescription)),
     giveawayWinnerCount: Math.max(1, Number(body.giveawayWinnerCount || 1)),
     giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
     giveawayImageUrl: uploadedImageUrl(files, "giveawayImageFile", body.giveawayImageUrl),
     moderationLogChannelId: trimField(body.moderationLogChannelId),
     blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean).slice(0, 15),
-    blockedWordsMessage: trimField(body.blockedWordsMessage),
+    blockedWordsMessage: englishText(trimField(body.blockedWordsMessage)),
     antiSpamMaxMessages: Math.max(2, Number(body.antiSpamMaxMessages || 5)),
     antiSpamWindowSeconds: Math.max(2, Number(body.antiSpamWindowSeconds || 6)),
-    antiSpamMessage: trimField(body.antiSpamMessage),
+    antiSpamMessage: englishText(trimField(body.antiSpamMessage)),
   };
 }
 
@@ -386,10 +426,10 @@ function parseTicketTypes(body) {
 
   const ticketTypes = labels.map((label, index) => ({
     id: slugForConfig(ids[index] || label || `ticket-${index + 1}`, `ticket-${index + 1}`),
-    buttonLabel: String(label || "").trim(),
+    buttonLabel: englishText(String(label || "").trim()),
     channelPrefix: slugForConfig(prefixes[index] || label || `ticket-${index + 1}`, "ticket"),
-    embedTitle: String(titles[index] || label || "טיקט חדש").trim(),
-    intro: String(intros[index] || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.").trim(),
+    embedTitle: englishText(String(titles[index] || label || "New ticket").trim()),
+    intro: englishText(String(intros[index] || "Write what you need help with. Staff will respond as soon as possible.").trim()),
     buttonStyle: ["primary", "secondary", "success", "danger"].includes(buttonStyles[index])
       ? buttonStyles[index]
       : "primary",
@@ -399,7 +439,7 @@ function parseTicketTypes(body) {
 }
 
 function checkbox(name, label, checked, value = "1") {
-  return `<label class="check"><input type="checkbox" name="${name}" value="${escapeHtml(value)}" ${checked ? "checked" : ""}> ${escapeHtml(label)}</label>`;
+  return `<label class="check"><input type="checkbox" name="${name}" value="${escapeHtml(value)}" ${checked ? "checked" : ""}> ${escapeHtml(englishText(label))}</label>`;
 }
 
 function escapeHtml(value) {
@@ -412,10 +452,10 @@ function escapeHtml(value) {
 }
 
 function option(value, label, selected = false) {
-  return `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  return `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(englishText(label))}</option>`;
 }
 
-function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
+function select(name, items, selectedValue, emptyLabel = "Not configured") {
   return `<select name="${name}">
     ${option("", emptyLabel, !selectedValue)}
     ${items.map((item) => option(item.id, item.label, item.id === selectedValue)).join("")}
@@ -423,11 +463,17 @@ function select(name, items, selectedValue, emptyLabel = "לא מוגדר") {
 }
 
 function textInput(name, value, placeholder = "") {
-  return `<input name="${name}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(placeholder)}">`;
+  return `<input name="${name}" value="${escapeHtml(englishText(value || ""))}" placeholder="${escapeHtml(englishText(placeholder))}">`;
 }
 
 function fileInput(name) {
-  return `<input type="file" name="${name}" accept="image/*">`;
+  return `
+    <label class="file-upload">
+      <input type="file" name="${name}" accept="image/*">
+      <span class="file-button">Choose image file</span>
+      <span class="file-name" data-empty-label="No file selected">No file selected</span>
+    </label>
+  `;
 }
 
 function colorInput(name, value) {
@@ -436,13 +482,13 @@ function colorInput(name, value) {
 }
 
 function textArea(name, value, placeholder = "") {
-  return `<textarea name="${name}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value || "")}</textarea>`;
+  return `<textarea name="${name}" placeholder="${escapeHtml(englishText(placeholder))}">${escapeHtml(englishText(value || ""))}</textarea>`;
 }
 
 function multiSelect(name, items, selectedValues) {
   const selectedSet = new Set(selectedValues || []);
   return `<div class="choice-list">
-    ${items.map((item) => checkbox(name, item.label, selectedSet.has(item.id), item.id)).join("") || "<p class=\"muted\">אין רולים לבחירה.</p>"}
+    ${items.map((item) => checkbox(name, item.label, selectedSet.has(item.id), item.id)).join("") || "<p class=\"muted\">No roles to choose from.</p>"}
   </div>`;
 }
 
@@ -463,9 +509,9 @@ function renderTicketTypeRows(ticketTypes) {
       <label>תחילת שם החדר</label>
       ${textInput("ticketTypeChannelPrefix", ticketType.channelPrefix, "ticket")}
       <label>כותרת בתוך הטיקט</label>
-      ${textInput("ticketTypeEmbedTitle", ticketType.embedTitle, "טיקט חדש")}
+      ${textInput("ticketTypeEmbedTitle", ticketType.embedTitle, "New ticket")}
       <label>הודעה בתוך הטיקט</label>
-      ${textArea("ticketTypeIntro", ticketType.intro, "תכתוב כאן מה יופיע למשתמש בתוך הטיקט.")}
+      ${textArea("ticketTypeIntro", ticketType.intro, "Write what the user will see inside the ticket.")}
       <button type="button" class="button secondary" data-remove-ticket-type>מחק סוג טיקט</button>
     </div>
   `).join("");
@@ -655,6 +701,10 @@ function layout(title, body, session = null) {
     input, textarea, select { width: 100%; box-sizing: border-box; padding: 11px; border-radius: 6px; border: 1px solid #374151; background: #0f1117; color: #f4f6fb; }
     input[type="checkbox"] { width: auto; margin-left: 8px; }
     html[dir="ltr"] input[type="checkbox"] { margin-left: 0; margin-right: 8px; }
+    .file-upload { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 11px; border-radius: 6px; border: 1px solid #374151; background: #0f1117; color: #f4f6fb; }
+    .file-upload input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .file-button { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: 6px; background: #374151; color: #fff; cursor: pointer; }
+    .file-name { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     input[type="color"] { height: 48px; padding: 4px; cursor: pointer; }
     textarea { min-height: 120px; direction: ltr; }
     button, .button { display: inline-block; margin-top: 18px; padding: 11px 16px; border: 0; border-radius: 6px; background: #7c3aed; color: white; cursor: pointer; }
@@ -821,7 +871,7 @@ function layout(title, body, session = null) {
       function renderVerifyPreview() {
         if (!verifyPreview) return;
         verifyPreview.style.borderRightColor = verifyAccentColor?.value || "#f17100";
-        verifyPreviewText.textContent = verifyText?.value || "כדי להיות מאומתים לחצו על הכפתור";
+        verifyPreviewText.textContent = verifyText?.value || "Click the button to get verified";
         verifyPreviewButton.textContent = verifyButtonLabel?.value || "Verify";
 
         if (verifyPreviewImage) {
@@ -835,13 +885,21 @@ function layout(title, body, session = null) {
         field?.addEventListener("input", renderVerifyPreview);
       });
 
+      document.querySelectorAll(".file-upload input[type='file']").forEach((input) => {
+        const fileName = input.closest(".file-upload")?.querySelector(".file-name");
+        input.addEventListener("change", () => {
+          if (!fileName) return;
+          fileName.textContent = input.files?.[0]?.name || fileName.dataset.emptyLabel || "No file selected";
+        });
+      });
+
       renderWelcomePreview();
       renderVerifyPreview();
       wireTicketRemovers();
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
   </script>
-  <script src="/assets/i18n.js?v=english-only-2"></script>
+  <script src="/assets/i18n.js?v=english-only-4"></script>
 </body>
 </html>`;
 }
@@ -1176,7 +1234,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <button type="button" class="button secondary" data-add-ticket-type>הוסף סוג טיקט</button>
           <template id="ticket-type-template">
             <div class="ticket-type-row">
-              <h4>סוג טיקט חדש</h4>
+              <h4>New ticket type</h4>
               <input type="hidden" name="ticketTypeId" value="">
               <label>שם הכפתור</label>
               ${textInput("ticketTypeButtonLabel", "", "פתח טיקט")}
@@ -1190,9 +1248,9 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               <label>תחילת שם החדר</label>
               ${textInput("ticketTypeChannelPrefix", "", "ticket")}
               <label>כותרת בתוך הטיקט</label>
-              ${textInput("ticketTypeEmbedTitle", "", "טיקט חדש")}
+              ${textInput("ticketTypeEmbedTitle", "", "New ticket")}
               <label>הודעה בתוך הטיקט</label>
-              ${textArea("ticketTypeIntro", "", "תכתוב כאן מה יופיע למשתמש בתוך הטיקט.")}
+              ${textArea("ticketTypeIntro", "", "Write what the user will see inside the ticket.")}
               <button type="button" class="button secondary" data-remove-ticket-type>מחק סוג טיקט</button>
             </div>
           </template>
@@ -1215,7 +1273,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <label>חדר הודעת Verify</label>
           ${select("verifyPanelChannelId", textChannelOptions, config.verifyPanelChannelId, "בחר חדר לשליחה מהאתר")}
           <label>טקסט הודעת Verify</label>
-          ${textArea("verifyText", config.verifyText, "כדי להיות מאומתים לחצו על הכפתור")}
+          ${textArea("verifyText", config.verifyText, "Click the button to get verified")}
           <label>שם הכפתור</label>
           ${textInput("verifyButtonLabel", config.verifyButtonLabel, "Verify")}
           <label>צבע ההודעה</label>
@@ -1225,7 +1283,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <label>או העלאת תמונה מהמחשב</label>
           ${fileInput("verifyImageFile")}
           <div class="verify-preview" data-verify-preview>
-            <p data-verify-preview-text>${escapeHtml(config.verifyText || "כדי להיות מאומתים לחצו על הכפתור")}</p>
+            <p data-verify-preview-text>${escapeHtml(config.verifyText || "Click the button to get verified")}</p>
             <img data-verify-preview-image src="${escapeHtml(config.verifyImageUrl || "")}" alt="תמונת Verify">
             <span class="verify-preview-button" data-verify-preview-button>${escapeHtml(config.verifyButtonLabel || "Verify")}</span>
           </div>
@@ -1284,14 +1342,14 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${textArea("blockedWords", (config.blockedWords || []).join("\n"), "כל מילה בשורה נפרדת")}
           <p class="muted">אפשר להגדיר עד 15 מילים אסורות.</p>
           <label>הודעה למשתמש אחרי מחיקה</label>
-          ${textInput("blockedWordsMessage", config.blockedWordsMessage, "ההודעה נמחקה כי היא כוללת מילה אסורה.")}
+          ${textInput("blockedWordsMessage", config.blockedWordsMessage, "The message was deleted because it contains a blocked word.")}
           <h3>אנטי ספאם</h3>
           <label>כמה הודעות מותר לשלוח</label>
           ${textInput("antiSpamMaxMessages", config.antiSpamMaxMessages, "5")}
           <label>בתוך כמה שניות</label>
           ${textInput("antiSpamWindowSeconds", config.antiSpamWindowSeconds, "6")}
           <label>הודעה למשתמש אחרי ספאם</label>
-          ${textInput("antiSpamMessage", config.antiSpamMessage, "נא לא להספים.")}
+          ${textInput("antiSpamMessage", config.antiSpamMessage, "Please do not spam.")}
         </div>
 
         <div id="giveaways" class="panel-section card">
@@ -1301,7 +1359,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <label>פרס</label>
           ${textInput("giveawayPrize", config.giveawayPrize, "Nitro / Role / Prize")}
           <label>תיאור ההגרלה</label>
-          ${textArea("giveawayDescription", config.giveawayDescription, "לחצו על הכפתור כדי להשתתף בהגרלה.")}
+          ${textArea("giveawayDescription", config.giveawayDescription, "Click the button to join the giveaway.")}
           <label>מספר זוכים</label>
           ${textInput("giveawayWinnerCount", config.giveawayWinnerCount, "1")}
           <label>כמה דקות ההגרלה תישאר פתוחה</label>
@@ -1419,8 +1477,8 @@ app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, imageU
     guildId,
     channelId: channel.id,
     messageId: "",
-    prize: config.giveawayPrize || "פרס חדש",
-    description: config.giveawayDescription || "לחצו על הכפתור כדי להשתתף בהגרלה.",
+    prize: config.giveawayPrize || "New prize",
+    description: config.giveawayDescription || "Click the button to join the giveaway.",
     winnerCount: Math.max(1, Number(config.giveawayWinnerCount || 1)),
     endAt: Date.now() + Math.max(1, Number(config.giveawayDurationMinutes || 60)) * 60000,
     imageUrl: config.giveawayImageUrl || "",
@@ -1484,3 +1542,4 @@ if (DISCORD_TOKEN) {
 } else {
   console.error("Missing DISCORD_TOKEN. Dashboard is running, but Discord server list will be empty.");
 }
+

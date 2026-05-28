@@ -135,7 +135,7 @@ async function handleModeration(message) {
   const blockedWord = getBlockedWord(message.content, config.blockedWords);
   if (blockedWord) {
     await message.delete().catch(console.error);
-    await message.channel.send(`${message.author}, ${config.blockedWordsMessage || "ההודעה נמחקה כי היא כוללת מילה אסורה."}`)
+    await message.channel.send(`${message.author}, ${config.blockedWordsMessage || "The message was deleted because it contains a blocked word."}`)
       .then((warning) => setTimeout(() => warning.delete().catch(() => {}), 5000))
       .catch(console.error);
     await sendModerationLog(message.guild, config, `נמחקה הודעה עם מילה אסורה מאת ${message.author} בחדר ${message.channel}. מילה: \`${blockedWord}\``);
@@ -152,7 +152,7 @@ async function handleModeration(message) {
 
   if (recentMessages.length > maxMessages) {
     await message.delete().catch(console.error);
-    await message.channel.send(`${message.author}, ${config.antiSpamMessage || "נא לא להספים."}`)
+    await message.channel.send(`${message.author}, ${config.antiSpamMessage || "Please do not spam."}`)
       .then((warning) => setTimeout(() => warning.delete().catch(() => {}), 5000))
       .catch(console.error);
     await sendModerationLog(message.guild, config, `נמחקה הודעת ספאם מאת ${message.author} בחדר ${message.channel}. ${recentMessages.length} הודעות בתוך ${Math.round(windowMs / 1000)} שניות.`);
@@ -339,8 +339,8 @@ function getTicketTypes(guildId) {
       id: "general",
       buttonLabel: config.ticketButtonLabel || "פתח טיקט",
       channelPrefix: config.ticketChannelPrefix || "ticket",
-      embedTitle: config.ticketEmbedTitle || "טיקט חדש",
-      intro: config.ticketIntro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+      embedTitle: config.ticketEmbedTitle || "New ticket",
+      intro: config.ticketIntro || "Write what you need help with. Staff will respond as soon as possible.",
     }];
 
   return ticketTypes
@@ -351,8 +351,8 @@ function getTicketTypes(guildId) {
         buttonId: `open_ticket_${id}`,
         buttonLabel: ticketType.buttonLabel || `טיקט ${index + 1}`,
         channelPrefix: slug(ticketType.channelPrefix || ticketType.buttonLabel || id, "ticket"),
-        embedTitle: ticketType.embedTitle || ticketType.buttonLabel || "טיקט חדש",
-        intro: ticketType.intro || "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+        embedTitle: ticketType.embedTitle || ticketType.buttonLabel || "New ticket",
+        intro: ticketType.intro || "Write what you need help with. Staff will respond as soon as possible.",
         buttonStyle: ticketType.buttonStyle || "primary",
       };
     });
@@ -418,7 +418,7 @@ function buildGiveawayMessage(giveaway) {
   const embed = new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xf1c40f)
     .setTitle(`🎉 ${giveaway.prize}`)
-    .setDescription(giveaway.description || "לחצו על הכפתור כדי להשתתף בהגרלה.")
+    .setDescription(giveaway.description || "Click the button to join the giveaway.")
     .addFields(
       { name: "זוכים", value: String(giveaway.winnerCount || 1), inline: true },
       { name: "משתתפים", value: String(giveaway.participants?.length || 0), inline: true },
@@ -678,7 +678,7 @@ function buildTicketPanelMessages(guildId) {
     const embed = new EmbedBuilder()
       .setColor(0x8b2cff)
       .setTitle(chunks.length > 1 ? `${config.ticketPanelTitle || "פתיחת טיקטים"} ${chunkIndex + 1}` : (config.ticketPanelTitle || "פתיחת טיקטים"))
-      .setDescription(config.ticketPanelDescription || "לחצו על הכפתור כדי לפתוח טיקט לצוות.");
+      .setDescription(config.ticketPanelDescription || "Click the button to open a ticket for the staff.");
 
     const files = [];
     if (config.ticketPanelImageUrl) {
@@ -721,7 +721,7 @@ function buildTicketPanel(guildId) {
 function buildVerifyPanel(guildId) {
   const config = getGuildConfig(guildId);
   const components = [
-    { type: 10, content: config.verifyText || "כדי להיות מאומתים לחצו על הכפתור" },
+    { type: 10, content: config.verifyText || "Click the button to get verified" },
   ];
 
   if (config.verifyImageUrl || VERIFY_IMAGE_URL) {

@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const path = require("path");
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
@@ -17,8 +17,8 @@ const DEFAULT_CONFIG = {
   },
   ticketCategoryId: "1498364707747401941",
   ticketOpenRoleId: "1498364648226033664",
-  ticketPanelTitle: "פתיחת טיקטים",
-  ticketPanelDescription: "לחצו על הכפתור כדי לפתוח טיקט לצוות.",
+  ticketPanelTitle: "Open tickets",
+  ticketPanelDescription: "Click the button to open a ticket for the staff.",
   ticketPanelImageUrl: "",
   ticketPanelDisplayMode: "buttons",
   ticketNameMode: "number",
@@ -27,10 +27,10 @@ const DEFAULT_CONFIG = {
   ticketTypes: [
     {
       id: "general",
-      buttonLabel: "פתח טיקט",
+      buttonLabel: "Open ticket",
       channelPrefix: "ticket",
-      embedTitle: "טיקט חדש",
-      intro: "תכתוב כאן במה אתה צריך עזרה. צוות יענה לך בהקדם.",
+      embedTitle: "New ticket",
+      intro: "Write what you need help with. Staff will respond as soon as possible.",
       buttonStyle: "primary",
     },
   ],
@@ -48,7 +48,7 @@ const DEFAULT_CONFIG = {
   ],
   verifiedRoleId: process.env.VERIFIED_ROLE_ID || "1498364648226033664",
   verifyPanelChannelId: "",
-  verifyText: "כדי להיות מאומתים לחצו על הכפתור",
+  verifyText: "Click the button to get verified",
   verifyButtonLabel: "Verify",
   verifyAccentColor: "#f17100",
   verifyImageUrl: "",
@@ -60,17 +60,17 @@ const DEFAULT_CONFIG = {
   ticketPanelChannelId: "",
   editBattlePanelChannelId: "1504184944283488328",
   giveawayChannelId: "",
-  giveawayPrize: "פרס חדש",
-  giveawayDescription: "לחצו על הכפתור כדי להשתתף בהגרלה.",
+  giveawayPrize: "New prize",
+  giveawayDescription: "Click the button to join the giveaway.",
   giveawayWinnerCount: 1,
   giveawayDurationMinutes: 60,
   giveawayImageUrl: "",
   moderationLogChannelId: "",
   blockedWords: [],
-  blockedWordsMessage: "ההודעה נמחקה כי היא כוללת מילה אסורה.",
+  blockedWordsMessage: "The message was deleted because it contains a blocked word.",
   antiSpamMaxMessages: 5,
   antiSpamWindowSeconds: 6,
-  antiSpamMessage: "נא לא להספים.",
+  antiSpamMessage: "Please do not spam.",
 };
 
 function ensureStore() {
@@ -121,3 +121,4 @@ module.exports = {
   readAllConfigs,
   setGuildConfig,
 };
+
