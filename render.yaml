@@ -16,6 +16,8 @@ services:
         sync: false
       - key: DASHBOARD_BASE_URL
         sync: false
+      - key: PREMIUM_GUILD_IDS
+        value: 1505251555689893978
       - key: WELCOME_CHANNEL_ID
         sync: false
       - key: VERIFIED_ROLE_ID

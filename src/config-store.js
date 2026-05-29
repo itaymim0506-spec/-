@@ -3,6 +3,9 @@ const path = require("path");
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const CONFIG_PATH = path.join(DATA_DIR, "guild-config.json");
+const DEFAULT_VERIFIED_ROLE_BY_GUILD = {
+  "1505251555689893978": "1506008339429986324",
+};
 
 const DEFAULT_CONFIG = {
   features: {
@@ -94,7 +97,7 @@ function getGuildConfig(guildId) {
   const ticketTypes = Array.isArray(savedConfig.ticketTypes) && savedConfig.ticketTypes.length
     ? savedConfig.ticketTypes
     : DEFAULT_CONFIG.ticketTypes;
-  return {
+  const config = {
     ...DEFAULT_CONFIG,
     ...savedConfig,
     features: {
@@ -103,6 +106,10 @@ function getGuildConfig(guildId) {
     },
     ticketTypes,
   };
+  if (!config.verifiedRoleId && DEFAULT_VERIFIED_ROLE_BY_GUILD[guildId]) {
+    config.verifiedRoleId = DEFAULT_VERIFIED_ROLE_BY_GUILD[guildId];
+  }
+  return config;
 }
 
 function setGuildConfig(guildId, updates) {

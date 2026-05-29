@@ -328,6 +328,11 @@ function uploadedImageUrl(files, fieldName, fallbackValue) {
   return `${BASE_URL}/uploads/${uploadedFile.filename}`;
 }
 
+function keepExistingWhenBlank(value, existingValue) {
+  const nextValue = trimField(value);
+  return nextValue || existingValue || "";
+}
+
 function premiumNotice(featureName) {
   return `<p class="muted premium-note">Premium required for ${escapeHtml(featureName)}.</p>`;
 }
@@ -395,6 +400,7 @@ function englishText(value) {
 
 function buildGuildConfigFromBody(body, files = {}, guildId = "") {
   const premium = isPremiumGuild(guildId);
+  const existingConfig = getGuildConfig(guildId);
   const config = {
     features: {
       verify: Boolean(body.featureVerify),
@@ -406,9 +412,9 @@ function buildGuildConfigFromBody(body, files = {}, guildId = "") {
       moderation: Boolean(body.featureModeration),
       music: Boolean(body.featureMusic),
     },
-    ticketCategoryId: trimField(body.ticketCategoryId),
-    ticketOpenRoleId: trimField(body.ticketOpenRoleId),
-    ticketPanelChannelId: trimField(body.ticketPanelChannelId),
+    ticketCategoryId: keepExistingWhenBlank(body.ticketCategoryId, existingConfig.ticketCategoryId),
+    ticketOpenRoleId: keepExistingWhenBlank(body.ticketOpenRoleId, existingConfig.ticketOpenRoleId),
+    ticketPanelChannelId: keepExistingWhenBlank(body.ticketPanelChannelId, existingConfig.ticketPanelChannelId),
     ticketPanelTitle: englishText(trimField(body.ticketPanelTitle)),
     ticketPanelDescription: englishText(trimField(body.ticketPanelDescription)),
     ticketPanelImageUrl: uploadedImageUrl(files, "ticketPanelImageFile", body.ticketPanelImageUrl),
@@ -416,28 +422,28 @@ function buildGuildConfigFromBody(body, files = {}, guildId = "") {
       ? body.ticketPanelDisplayMode
       : "buttons",
     ticketNameMode: body.ticketNameMode || "number",
-    ticketTranscriptChannelId: premium ? trimField(body.ticketTranscriptChannelId) : "",
+    ticketTranscriptChannelId: premium ? keepExistingWhenBlank(body.ticketTranscriptChannelId, existingConfig.ticketTranscriptChannelId) : "",
     ticketTypes: parseTicketTypes(body),
     staffRoleIds: parseIds(body.staffRoleIds),
-    verifiedRoleId: trimField(body.verifiedRoleId),
-    verifyPanelChannelId: trimField(body.verifyPanelChannelId),
+    verifiedRoleId: keepExistingWhenBlank(body.verifiedRoleId, existingConfig.verifiedRoleId),
+    verifyPanelChannelId: keepExistingWhenBlank(body.verifyPanelChannelId, existingConfig.verifyPanelChannelId),
     verifyText: englishText(trimField(body.verifyText)),
     verifyButtonLabel: englishText(trimField(body.verifyButtonLabel)),
     verifyAccentColor: trimField(body.verifyAccentColor),
     verifyImageUrl: uploadedImageUrl(files, "verifyImageFile", body.verifyImageUrl),
-    welcomeChannelId: trimField(body.welcomeChannelId),
+    welcomeChannelId: keepExistingWhenBlank(body.welcomeChannelId, existingConfig.welcomeChannelId),
     welcomeTitle: englishText(trimField(body.welcomeTitle)),
     welcomeMessage: englishText(trimField(body.welcomeMessage)),
     welcomeColor: trimField(body.welcomeColor),
     welcomeImageUrl: premium ? uploadedImageUrl(files, "welcomeImageFile", body.welcomeImageUrl) : "",
-    editBattlePanelChannelId: trimField(body.editBattlePanelChannelId),
-    giveawayChannelId: trimField(body.giveawayChannelId),
+    editBattlePanelChannelId: keepExistingWhenBlank(body.editBattlePanelChannelId, existingConfig.editBattlePanelChannelId),
+    giveawayChannelId: keepExistingWhenBlank(body.giveawayChannelId, existingConfig.giveawayChannelId),
     giveawayPrize: englishText(trimField(body.giveawayPrize)),
     giveawayDescription: englishText(trimField(body.giveawayDescription)),
     giveawayWinnerCount: Math.max(1, Number(body.giveawayWinnerCount || 1)),
     giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
     giveawayImageUrl: uploadedImageUrl(files, "giveawayImageFile", body.giveawayImageUrl),
-    moderationLogChannelId: trimField(body.moderationLogChannelId),
+    moderationLogChannelId: keepExistingWhenBlank(body.moderationLogChannelId, existingConfig.moderationLogChannelId),
     blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean).slice(0, premium ? undefined : FREE_BLOCKED_WORD_LIMIT),
     blockedWordsMessage: englishText(trimField(body.blockedWordsMessage)),
     antiSpamMaxMessages: Math.max(2, Number(body.antiSpamMaxMessages || 5)),
@@ -1007,6 +1013,14 @@ app.get("/premium", (req, res) => {
       <a class="button secondary" href="/invite">Add Bread Bot to your server</a>
     </div>
   `, getSession(req)));
+});
+
+app.get("/premium-status/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
+  const { guildId } = req.params;
+  res.json({
+    guildId,
+    premium: isPremiumGuild(guildId),
+  });
 });
 
 app.get("/terms", (req, res) => {
