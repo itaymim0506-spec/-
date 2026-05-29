@@ -3,6 +3,7 @@ const path = require("path");
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const PREMIUM_PATH = path.join(DATA_DIR, "premium-guilds.json");
+const DEFAULT_PREMIUM_GUILD_IDS = ["1505251555689893978"];
 
 function ensureStore() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -19,7 +20,7 @@ function readPremiumGuildIds() {
     .split(/[\s,]+/)
     .map((guildId) => guildId.trim())
     .filter(Boolean);
-  return [...new Set([...fileGuildIds, ...envGuildIds])];
+  return [...new Set([...DEFAULT_PREMIUM_GUILD_IDS, ...fileGuildIds, ...envGuildIds])];
 }
 
 function isPremiumGuild(guildId) {

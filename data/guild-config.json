@@ -7,7 +7,7 @@
       "tickets": true,
       "reportTickets": true,
       "techTickets": true,
-      "editBattles": false
+      "editBattles": true
     },
     "ticketCategoryId": "1506004826046206124",
     "ticketOpenRoleId": "1505993853054750831",
