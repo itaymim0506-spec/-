@@ -757,6 +757,9 @@ function layout(title, body, session = null) {
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 18px; }
     .stat { padding: 14px; background: #111318; border: 1px solid #2a2f3a; border-radius: 8px; }
     .stat strong { display: block; font-size: 20px; margin-bottom: 4px; }
+    .price { font-size: 44px; font-weight: 800; margin: 12px 0; color: #fff; }
+    .feature-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; padding: 0; list-style: none; }
+    .feature-list li { padding: 12px; border: 1px solid #374151; border-radius: 8px; background: #0f1117; }
     .save-row { position: sticky; bottom: 0; margin-top: 18px; padding: 12px 0; background: #111318; border-top: 1px solid #2a2f3a; }
     .ticket-type-row { padding: 14px; margin: 12px 0; border: 1px solid #374151; border-radius: 8px; background: #111318; }
     .ticket-type-row h4 { margin: 0 0 10px; }
@@ -789,6 +792,7 @@ function layout(title, body, session = null) {
         </span>
       </div>
       <div class="header-actions">
+        <a class="button secondary" href="/premium">Premium</a>
         <a class="button" href="/invite">Add to your server</a>
         ${user ? `
           <details class="profile-menu">
@@ -973,6 +977,27 @@ app.get("/invite", (req, res) => {
   }
 
   res.redirect(getBotInviteUrl());
+});
+
+app.get("/premium", (req, res) => {
+  res.send(layout("Premium", `
+    <div class="card login-hero">
+      <h1 class="login-title">Bread Bot Premium</h1>
+      <p class="home-subtitle">Unlock the advanced server tools for your Discord community.</p>
+      <div class="price">₪7 <span class="muted" style="font-size:16px;font-weight:400;">/ month</span></div>
+      <ul class="feature-list">
+        <li>Unlimited ticket types</li>
+        <li>Ticket transcripts</li>
+        <li>Giveaways</li>
+        <li>Battle Room</li>
+        <li>Unlimited blocked words for Anti-spam</li>
+        <li>Welcome images</li>
+      </ul>
+      <p class="muted">Payments are not connected yet. Premium is currently enabled manually by the bot owner.</p>
+      <a class="button" href="/login">Open dashboard</a>
+      <a class="button secondary" href="/invite">Add Bread Bot to your server</a>
+    </div>
+  `, getSession(req)));
 });
 
 app.get("/terms", (req, res) => {
