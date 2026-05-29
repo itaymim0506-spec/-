@@ -15,7 +15,11 @@ function buildSlashCommands() {
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
     new SlashCommandBuilder()
       .setName("setup-edit-battle")
-      .setDescription("Post the battle room button.")
+      .setDescription("Post the private chat button.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    new SlashCommandBuilder()
+      .setName("setup-private-chat")
+      .setDescription("Post the private chat button.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
     new SlashCommandBuilder()
       .setName("music")

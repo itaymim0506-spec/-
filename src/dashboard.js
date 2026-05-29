@@ -299,8 +299,8 @@ function pickGiveawayWinners(participants, winnerCount, previousWinnerIds = []) 
 function buildEditBattlePanel() {
   const embed = new EmbedBuilder()
     .setColor(0x8b2cff)
-    .setTitle("חדר קרב")
-    .setDescription("לחץ על הכפתור כדי להצטרף לחדר קרב. כשיהיו לפחות שני משתתפים, הבוט ישדך שניים רנדומלית ויפתח להם חדר פרטי.");
+    .setTitle("Private Chat")
+    .setDescription("Click the button, choose the person you want to invite, and ask them to invite you back. A private room opens only when both users invite each other.");
 
   const files = [];
   if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
@@ -311,7 +311,7 @@ function buildEditBattlePanel() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
-      .setLabel("פתיחת חדר קרב")
+      .setLabel("Start Private Chat")
       .setStyle(ButtonStyle.Primary),
   );
 
@@ -470,8 +470,10 @@ function parseTicketTypes(body) {
   return ticketTypes.length ? ticketTypes : DEFAULT_CONFIG.ticketTypes;
 }
 
-function checkbox(name, label, checked, value = "1") {
-  return `<label class="check"><input type="checkbox" name="${name}" value="${escapeHtml(value)}" ${checked ? "checked" : ""}> ${escapeHtml(englishText(label))}</label>`;
+function checkbox(name, label, checked, value = "1", options = {}) {
+  const disabled = options.disabled ? "disabled" : "";
+  const disabledClass = options.disabled ? " check-disabled" : "";
+  return `<label class="check${disabledClass}"><input type="checkbox" name="${name}" value="${escapeHtml(value)}" ${checked ? "checked" : ""} ${disabled}> ${escapeHtml(englishText(label))}</label>`;
 }
 
 function escapeHtml(value) {
@@ -745,6 +747,8 @@ function layout(title, body, session = null) {
     .muted { color: #94a3b8; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
     .check { display: flex; align-items: center; margin: 10px 0; color: #f4f6fb; }
+    .check-disabled { opacity: .55; cursor: not-allowed; }
+    .check-disabled input { cursor: not-allowed; }
     .choice-list { max-height: 260px; overflow: auto; padding: 8px 12px; border: 1px solid #374151; border-radius: 6px; background: #0f1117; }
     .guild-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; align-items: start; }
     .side-nav { position: sticky; top: 18px; }
@@ -949,7 +953,7 @@ app.get("/login", (req, res, next) => {
   res.send(layout("Login", `
     <div class="card login-hero">
       <h1 class="login-title">Bread Bot</h1>
-      <p class="home-subtitle">The official dashboard for managing Bread Bot: tickets, verification, welcome messages, help, and edit battles.</p>
+      <p class="home-subtitle">The official dashboard for managing Bread Bot: tickets, verification, welcome messages, help, and private chats.</p>
       <a class="button" href="/auth/discord">Login with Discord</a>
       <a class="button" href="/invite">Add Bread Bot to your server</a>
       ${isDiscordLoginReady ? "" : `
@@ -994,7 +998,7 @@ app.get("/premium", (req, res) => {
         <li>Unlimited ticket types ${premiumBadge()}</li>
         <li>Ticket transcripts ${premiumBadge()}</li>
         <li>Giveaways ${premiumBadge()}</li>
-        <li>Battle Room ${premiumBadge()}</li>
+        <li>Private Chat ${premiumBadge()}</li>
         <li>Unlimited blocked words for Anti-spam ${premiumBadge()}</li>
         <li>Welcome images ${premiumBadge()}</li>
       </ul>
@@ -1226,7 +1230,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <a class="nav-link" href="#music">מוזיקה</a>
         <a class="nav-link" href="#moderation">אבטחה</a>
         <a class="nav-link" href="#help">עזרה</a>
-        <a class="nav-link" href="#edit-battles">חדר קרב</a>
+        <a class="nav-link" href="#edit-battles">Private Chat</a>
         <div class="save-row">
           <button type="submit">שמור הגדרות</button>
         </div>
@@ -1253,14 +1257,14 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 
         <div id="features" class="panel-section card">
           <h2>הפעלה / ביטול</h2>
-          <p class="muted">Free includes Tickets up to 3 types, Verify, basic Welcome, Music, and Anti-spam up to 15 blocked words. Premium unlocks unlimited ticket types, Transcript, Giveaways, Battle Room, unlimited blocked words, and Welcome images.</p>
+          <p class="muted">Free includes Tickets up to 3 types, Verify, basic Welcome, Music, and Anti-spam up to 15 blocked words. Premium unlocks unlimited ticket types, Transcript, Giveaways, Private Chat, unlimited blocked words, and Welcome images.</p>
           ${checkbox("featureVerify", "Verify", config.features.verify)}
           ${checkbox("featureWelcome", "Welcome", config.features.welcome)}
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
-          ${!premium ? premiumNotice("Battle Room and Giveaways") : ""}
-          ${checkbox("featureEditBattles", "Battle Room", config.features.editBattles)} ${premiumBadge()}
-          ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)} ${premiumBadge()}
+          ${!premium ? premiumNotice("Private Chat and Giveaways") : ""}
+          ${checkbox("featureEditBattles", "Private Chat", config.features.editBattles, "1", { disabled: !premium })} ${premiumBadge()}
+          ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways, "1", { disabled: !premium })} ${premiumBadge()}
           ${checkbox("featureModeration", "חסימת קללות ואנטי ספאם", config.features.moderation)}
           ${checkbox("featureMusic", "מערכת מוזיקה", config.features.music)}
         </div>
@@ -1446,11 +1450,11 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         </div>
 
         <div id="edit-battles" class="panel-section card">
-          <h2>Battle Room ${premiumBadge()}</h2>
-          ${!premium ? premiumNotice("Battle Room") : ""}
-          <label>חדר פאנל חדר קרב</label>
+          <h2>Private Chat ${premiumBadge()}</h2>
+          ${!premium ? premiumNotice("Private Chat") : ""}
+          <label>Private Chat panel channel</label>
           ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
-          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-edit-battle-panel" formmethod="post">שלח פאנל חדר קרב עכשיו</button>
+          <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-edit-battle-panel" formmethod="post">Send Private Chat panel now</button>
         </div>
       </section>
     </form>
@@ -1516,7 +1520,7 @@ app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, i
 app.post("/guild/:guildId/send-edit-battle-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
   if (!isPremiumGuild(guildId)) {
-    res.status(403).send(sendResultPage("Premium required", "Battle Room is a Premium feature.", guildId, "edit-battles"));
+    res.status(403).send(sendResultPage("Premium required", "Private Chat is a Premium feature.", guildId, "edit-battles"));
     return;
   }
   setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
@@ -1525,12 +1529,12 @@ app.post("/guild/:guildId/send-edit-battle-panel", requireAuth, requireGuildAdmi
   const config = getGuildConfig(guildId);
   const channel = guild ? await getWritableTextChannel(guild, config.editBattlePanelChannelId) : null;
   if (!guild || !channel) {
-    res.status(400).send(sendResultPage("לא נשלח", "צריך לבחור חדר תקין לפאנל חדר קרב.", guildId, "edit-battles"));
+    res.status(400).send(sendResultPage("Not sent", "Choose a valid channel for the Private Chat panel.", guildId, "edit-battles"));
     return;
   }
 
   await channel.send(buildEditBattlePanel());
-  res.send(sendResultPage("נשלח", "פאנל חדר קרב נשלח לחדר שבחרת.", guildId, "edit-battles"));
+  res.send(sendResultPage("Sent", "Private Chat panel was sent to the selected channel.", guildId, "edit-battles"));
 });
 
 app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {

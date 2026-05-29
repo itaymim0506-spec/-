@@ -27,6 +27,7 @@ const {
   REST,
   Routes,
   StringSelectMenuBuilder,
+  UserSelectMenuBuilder,
 } = require("discord.js");
 
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "")
@@ -65,6 +66,7 @@ const TICKET_PANEL_IMAGE_PATH = path.join(
 const TICKET_PANEL_IMAGE_NAME = "tickets-banner.png";
 const EDIT_BATTLE_PANEL_CHANNEL_ID = "1504184944283488328";
 const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
+const PRIVATE_CHAT_USER_SELECT_ID = "private_chat_user_select";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const EDIT_BATTLE_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
@@ -88,7 +90,7 @@ client.on(Events.Error, (error) => {
   console.error("Discord client error:", error);
 });
 
-const editBattleQueue = [];
+const privateChatInvites = new Map();
 const finishVotesByChannel = new Map();
 const closingChannels = new Set();
 const spamBuckets = new Map();
@@ -230,7 +232,7 @@ function getTicketClaimedUserId(channel) {
 }
 
 function getEditBattleUserIds(channel) {
-  const match = channel.topic?.match(/^edit-battle:(\d+):(\d+)/);
+  const match = channel.topic?.match(/^(?:edit-battle|private-chat):(\d+):(\d+)/);
   return match ? [match[1], match[2]] : [];
 }
 
@@ -781,8 +783,8 @@ function buildTicketActionRow({ claimedBy } = {}) {
 function buildEditBattlePanel() {
   const embed = new EmbedBuilder()
     .setColor(0x8b2cff)
-    .setTitle("חדר קרב")
-    .setDescription("לחץ על הכפתור כדי להצטרף לחדר קרב. כשיהיו לפחות שני משתתפים, הבוט ישדך שניים רנדומלית ויפתח להם חדר פרטי.");
+    .setTitle("Private Chat")
+    .setDescription("Click the button, choose the person you want to invite, and ask them to invite you back. A private room opens only when both users invite each other.");
 
   const files = [];
   if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
@@ -793,7 +795,7 @@ function buildEditBattlePanel() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
-      .setLabel("פתיחת חדר קרב")
+      .setLabel("Start Private Chat")
       .setStyle(ButtonStyle.Primary),
   );
 
@@ -820,7 +822,7 @@ async function sendFreshPanels(guild, channel) {
     const editBattleChannel = await guild.channels.fetch(editBattlePanelChannelId).catch(() => null);
     const targetChannel = editBattleChannel?.isTextBased() ? editBattleChannel : channel;
     await targetChannel.send(buildEditBattlePanel());
-    sentPanels.push("Edit battles");
+    sentPanels.push("Private Chat");
   }
 
   return sentPanels;
@@ -847,11 +849,6 @@ async function syncSlashCommands() {
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
   await rest.put(Routes.applicationCommands(CLIENT_ID), { body: buildSlashCommands() });
   console.log("Slash commands synced.");
-}
-
-function pickRandomQueuedUserId() {
-  const index = Math.floor(Math.random() * editBattleQueue.length);
-  return editBattleQueue.splice(index, 1)[0];
 }
 
 function buildTicketTopic(ticketType, userId, ticketNumber) {
@@ -979,9 +976,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  if (interaction.isChatInputCommand() && interaction.commandName === "setup-edit-battle") {
+  if (interaction.isChatInputCommand() && ["setup-edit-battle", "setup-private-chat"].includes(interaction.commandName)) {
     if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
-      await interaction.reply({ content: "חדר קרב כבוי בשרת הזה.", flags: 64 });
+      await interaction.reply({ content: "Private Chat is disabled on this server.", flags: 64 });
       return;
     }
 
@@ -991,7 +988,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     await interaction.channel.send(buildEditBattlePanel());
-    await interaction.reply({ content: "Battle room panel posted.", flags: 64 });
+    await interaction.reply({ content: "Private Chat panel posted.", flags: 64 });
     return;
   }
 
@@ -1015,29 +1012,65 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (interaction.isButton() && interaction.customId === EDIT_BATTLE_JOIN_BUTTON_ID) {
     if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
-      await interaction.reply({ content: "חדר קרב כבוי בשרת הזה.", flags: 64 });
+      await interaction.reply({ content: "Private Chat is disabled on this server.", flags: 64 });
       return;
     }
 
-    if (editBattleQueue.includes(interaction.user.id)) {
-      await interaction.reply({ content: "אתה כבר בתור לחדר קרב.", flags: 64 });
+    await interaction.reply({
+      content: "Choose the user you want to invite. The private room opens only after they invite you back.",
+      components: [
+        new ActionRowBuilder().addComponents(
+          new UserSelectMenuBuilder()
+            .setCustomId(PRIVATE_CHAT_USER_SELECT_ID)
+            .setPlaceholder("Choose a user")
+            .setMinValues(1)
+            .setMaxValues(1),
+        ),
+      ],
+      flags: 64,
+    });
+    return;
+  }
+
+  if (interaction.isUserSelectMenu() && interaction.customId === PRIVATE_CHAT_USER_SELECT_ID) {
+    if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
+      await interaction.reply({ content: "Private Chat is disabled on this server.", flags: 64 });
       return;
     }
 
-    editBattleQueue.push(interaction.user.id);
-
-    if (editBattleQueue.length < 2) {
-      await interaction.reply({ content: "נכנסת לתור. מחכים לעוד משתתף.", flags: 64 });
+    const inviterId = interaction.user.id;
+    const targetId = interaction.values[0];
+    if (targetId === inviterId) {
+      await interaction.reply({ content: "Choose another user, not yourself.", flags: 64 });
       return;
     }
 
-    const firstUserId = pickRandomQueuedUserId();
-    const secondUserId = pickRandomQueuedUserId();
+    const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
+    if (!targetMember || targetMember.user.bot) {
+      await interaction.reply({ content: "Choose a real server member.", flags: 64 });
+      return;
+    }
+
+    const guildInvites = privateChatInvites.get(interaction.guild.id) ?? new Map();
+    privateChatInvites.set(interaction.guild.id, guildInvites);
+    const targetInvitedBack = guildInvites.get(targetId) === inviterId;
+    guildInvites.set(inviterId, targetId);
+
+    if (!targetInvitedBack) {
+      await interaction.reply({
+        content: `Invite saved. <@${targetId}> also needs to press **Start Private Chat** and choose you.`,
+        flags: 64,
+      });
+      return;
+    }
+
+    guildInvites.delete(inviterId);
+    guildInvites.delete(targetId);
 
     const permissionOverwrites = [
       { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
-        id: firstUserId,
+        id: inviterId,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.SendMessages,
@@ -1045,7 +1078,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         ],
       },
       {
-        id: secondUserId,
+        id: targetId,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.SendMessages,
@@ -1063,37 +1096,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
       },
     ];
 
-    const battleChannel = await interaction.guild.channels.create({
-      name: `battle-room-${firstUserId.slice(-4)}-${secondUserId.slice(-4)}`,
+    const privateChannel = await interaction.guild.channels.create({
+      name: `private-chat-${inviterId.slice(-4)}-${targetId.slice(-4)}`,
       type: ChannelType.GuildText,
       parent: interaction.channel.parentId,
-      topic: `edit-battle:${firstUserId}:${secondUserId}`,
+      topic: `private-chat:${inviterId}:${targetId}`,
       permissionOverwrites,
     }).catch(async (error) => {
       console.error(error);
-      editBattleQueue.push(firstUserId, secondUserId);
       await interaction.reply({
-        content: "לא הצלחתי לפתוח חדר לקרב. תבדוק שיש לי Manage Channels.",
+        content: "I could not open the private chat. Check that I have Manage Channels.",
         flags: 64,
       });
       return null;
     });
 
-    if (!battleChannel) return;
+    if (!privateChannel) return;
 
     const embed = new EmbedBuilder()
       .setColor(0x8b2cff)
-      .setTitle("חדר קרב נפתח")
-      .setDescription(`<@${firstUserId}> נגד <@${secondUserId}>\nרק שניכם יכולים לראות ולכתוב בחדר הזה.\n\nכדי לסגור את הטיקט אוטומטית, גם אתה וגם איש הצוות שלקח את הטיקט צריכים לכתוב \`!סיימתי\`.`)
+      .setTitle("Private Chat Opened")
+      .setDescription(`<@${inviterId}> and <@${targetId}>\nOnly you two can see and write in this room.\n\nTo close it automatically, both users need to write \`!סיימתי\`.`)
       .setTimestamp();
 
-    await battleChannel.send({
-      content: `<@${firstUserId}> <@${secondUserId}>`,
+    await privateChannel.send({
+      content: `<@${inviterId}> <@${targetId}>`,
       embeds: [embed],
     });
 
     await interaction.reply({
-      content: `נבחר קרב רנדומלי ונפתח חדר: ${battleChannel}`,
+      content: `Private chat opened: ${privateChannel}`,
       flags: 64,
     });
     return;
