@@ -332,6 +332,10 @@ function premiumNotice(featureName) {
   return `<p class="muted premium-note">Premium required for ${escapeHtml(featureName)}.</p>`;
 }
 
+function premiumBadge() {
+  return `<span class="premium-badge" title="Premium feature">Premium</span>`;
+}
+
 function applyPlanLimits(guildId, config) {
   if (isPremiumGuild(guildId)) return config;
 
@@ -760,6 +764,7 @@ function layout(title, body, session = null) {
     .price { font-size: 44px; font-weight: 800; margin: 12px 0; color: #fff; }
     .feature-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; padding: 0; list-style: none; }
     .feature-list li { padding: 12px; border: 1px solid #374151; border-radius: 8px; background: #0f1117; }
+    .premium-badge { display: inline-flex; align-items: center; margin-left: 8px; padding: 2px 7px; border: 1px solid #f59e0b; border-radius: 999px; background: rgba(245,158,11,.12); color: #fde68a; font-size: 11px; font-weight: 800; line-height: 1.4; text-transform: uppercase; vertical-align: middle; }
     .save-row { position: sticky; bottom: 0; margin-top: 18px; padding: 12px 0; background: #111318; border-top: 1px solid #2a2f3a; }
     .ticket-type-row { padding: 14px; margin: 12px 0; border: 1px solid #374151; border-radius: 8px; background: #111318; }
     .ticket-type-row h4 { margin: 0 0 10px; }
@@ -933,7 +938,7 @@ function layout(title, body, session = null) {
       showSection(location.hash ? location.hash.slice(1) : "home");
     });
   </script>
-  <script src="/assets/i18n.js?v=bread-bot-1"></script>
+  <script src="/assets/i18n.js?v=bread-bot-2"></script>
 </body>
 </html>`;
 }
@@ -984,14 +989,14 @@ app.get("/premium", (req, res) => {
     <div class="card login-hero">
       <h1 class="login-title">Bread Bot Premium</h1>
       <p class="home-subtitle">Unlock the advanced server tools for your Discord community.</p>
-      <div class="price">₪7 <span class="muted" style="font-size:16px;font-weight:400;">/ month</span></div>
+      <div class="price">$2.50 <span class="muted" style="font-size:16px;font-weight:400;">/ month</span></div>
       <ul class="feature-list">
-        <li>Unlimited ticket types</li>
-        <li>Ticket transcripts</li>
-        <li>Giveaways</li>
-        <li>Battle Room</li>
-        <li>Unlimited blocked words for Anti-spam</li>
-        <li>Welcome images</li>
+        <li>Unlimited ticket types ${premiumBadge()}</li>
+        <li>Ticket transcripts ${premiumBadge()}</li>
+        <li>Giveaways ${premiumBadge()}</li>
+        <li>Battle Room ${premiumBadge()}</li>
+        <li>Unlimited blocked words for Anti-spam ${premiumBadge()}</li>
+        <li>Welcome images ${premiumBadge()}</li>
       </ul>
       <p class="muted">Payments are not connected yet. Premium is currently enabled manually by the bot owner.</p>
       <a class="button" href="/login">Open dashboard</a>
@@ -1254,8 +1259,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
           ${!premium ? premiumNotice("Battle Room and Giveaways") : ""}
-          ${checkbox("featureEditBattles", "חדר קרב", config.features.editBattles)}
-          ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)}
+          ${checkbox("featureEditBattles", "Battle Room", config.features.editBattles)} ${premiumBadge()}
+          ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)} ${premiumBadge()}
           ${checkbox("featureModeration", "חסימת קללות ואנטי ספאם", config.features.moderation)}
           ${checkbox("featureMusic", "מערכת מוזיקה", config.features.music)}
         </div>
@@ -1287,7 +1292,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ], config.ticketNameMode || "number", "לפי מספר הטיקט")}
 
           <h3>סוגי טיקטים וכפתורים</h3>
-          <p class="muted">${premium ? "Premium allows unlimited ticket types." : "Free plan allows up to 3 ticket types."}</p>
+          <p class="muted">${premium ? `Premium allows unlimited ticket types. ${premiumBadge()}` : `Free plan allows up to 3 ticket types. Unlimited ticket types are Premium. ${premiumBadge()}`}</p>
           <div data-ticket-types data-max-ticket-types="${premium ? "" : FREE_TICKET_TYPE_LIMIT}">
             ${renderTicketTypeRows(config.ticketTypes || DEFAULT_CONFIG.ticketTypes)}
           </div>
@@ -1319,7 +1324,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h3>הרשאות ומיקום</h3>
           <label>קטגוריית טיקטים</label>
           ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
-          <label>חדר Transcript לטיקטים</label>
+          <label>Ticket transcript channel ${premiumBadge()}</label>
           ${!premium ? premiumNotice("Ticket transcripts") : ""}
           ${select("ticketTranscriptChannelId", textChannelOptions, config.ticketTranscriptChannelId, "לא לשלוח Transcript")}
           <label>רול שיכול לפתוח טיקט</label>
@@ -1363,7 +1368,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <p class="muted">אפשר להשתמש ב־{user}, {username}, {server} בתוך ההודעה.</p>
           <label>צבע ההודעה</label>
           ${colorInput("welcomeColor", config.welcomeColor)}
-          <label>תמונה בהודעת Welcome</label>
+          <label>Welcome image ${premiumBadge()}</label>
           ${!premium ? premiumNotice("Welcome images") : ""}
           ${textInput("welcomeImageUrl", config.welcomeImageUrl, "https://example.com/image.png")}
           <label>או העלאת תמונה מהמחשב</label>
@@ -1403,7 +1408,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h3>חסימת קללות</h3>
           <label>מילים אסורות</label>
           ${textArea("blockedWords", (config.blockedWords || []).join("\n"), "כל מילה בשורה נפרדת")}
-          <p class="muted">${premium ? "Premium allows unlimited blocked words." : "Free plan allows up to 15 blocked words."}</p>
+          <p class="muted">${premium ? `Premium allows unlimited blocked words. ${premiumBadge()}` : `Free plan allows up to 15 blocked words. Unlimited blocked words are Premium. ${premiumBadge()}`}</p>
           <label>הודעה למשתמש אחרי מחיקה</label>
           ${textInput("blockedWordsMessage", config.blockedWordsMessage, "The message was deleted because it contains a blocked word.")}
           <h3>אנטי ספאם</h3>
@@ -1416,7 +1421,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         </div>
 
         <div id="giveaways" class="panel-section card">
-          <h2>Giveaways</h2>
+          <h2>Giveaways ${premiumBadge()}</h2>
           ${!premium ? premiumNotice("Giveaways") : ""}
           <label>חדר ההגרלות</label>
           ${select("giveawayChannelId", textChannelOptions, config.giveawayChannelId, "בחר חדר לשליחת הגרלה")}
@@ -1441,7 +1446,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         </div>
 
         <div id="edit-battles" class="panel-section card">
-          <h2>חדר קרב</h2>
+          <h2>Battle Room ${premiumBadge()}</h2>
           ${!premium ? premiumNotice("Battle Room") : ""}
           <label>חדר פאנל חדר קרב</label>
           ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
