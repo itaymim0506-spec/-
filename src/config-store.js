@@ -6,6 +6,12 @@ const CONFIG_PATH = path.join(DATA_DIR, "guild-config.json");
 const DEFAULT_VERIFIED_ROLE_BY_GUILD = {
   "1505251555689893978": "1506008339429986324",
 };
+const FEATURE_OVERRIDES_BY_GUILD = {
+  "1505251555689893978": {
+    editBattles: true,
+    giveaways: true,
+  },
+};
 
 const DEFAULT_CONFIG = {
   features: {
@@ -103,6 +109,7 @@ function getGuildConfig(guildId) {
     features: {
       ...DEFAULT_CONFIG.features,
       ...(savedConfig.features || {}),
+      ...(FEATURE_OVERRIDES_BY_GUILD[guildId] || {}),
     },
     ticketTypes,
   };
