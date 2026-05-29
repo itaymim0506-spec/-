@@ -17,6 +17,7 @@ const {
 } = require("discord.js");
 const { DEFAULT_CONFIG, getGuildConfig, setGuildConfig } = require("./config-store");
 const { getGiveaway, readGiveaways, setGiveaway } = require("./giveaway-store");
+const { isPremiumGuild } = require("./premium-store");
 
 const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3000);
 const BASE_URL = (process.env.DASHBOARD_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
@@ -49,6 +50,9 @@ const EDIT_BATTLE_IMAGE_NAME = "edit-battle.png";
 
 const app = express();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+const FREE_TICKET_TYPE_LIMIT = 3;
+const FREE_BLOCKED_WORD_LIMIT = 15;
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -324,6 +328,27 @@ function uploadedImageUrl(files, fieldName, fallbackValue) {
   return `${BASE_URL}/uploads/${uploadedFile.filename}`;
 }
 
+function premiumNotice(featureName) {
+  return `<p class="muted premium-note">Premium required for ${escapeHtml(featureName)}.</p>`;
+}
+
+function applyPlanLimits(guildId, config) {
+  if (isPremiumGuild(guildId)) return config;
+
+  return {
+    ...config,
+    features: {
+      ...config.features,
+      editBattles: false,
+      giveaways: false,
+    },
+    ticketTranscriptChannelId: "",
+    ticketTypes: (config.ticketTypes || DEFAULT_CONFIG.ticketTypes).slice(0, FREE_TICKET_TYPE_LIMIT),
+    welcomeImageUrl: "",
+    blockedWords: (config.blockedWords || []).slice(0, FREE_BLOCKED_WORD_LIMIT),
+  };
+}
+
 const ENGLISH_TEXT = new Map(Object.entries({
   "פתיחת טיקטים": "Open tickets",
   "לחצו על הכפתור כדי לפתוח טיקט לצוות.": "Click the button to open a ticket for the staff.",
@@ -364,15 +389,16 @@ function englishText(value) {
   return ENGLISH_TEXT.get(trimmedValue) || rawValue;
 }
 
-function buildGuildConfigFromBody(body, files = {}) {
-  return {
+function buildGuildConfigFromBody(body, files = {}, guildId = "") {
+  const premium = isPremiumGuild(guildId);
+  const config = {
     features: {
       verify: Boolean(body.featureVerify),
       welcome: Boolean(body.featureWelcome),
       help: Boolean(body.featureHelp),
       tickets: Boolean(body.featureTickets),
-      editBattles: Boolean(body.featureEditBattles),
-      giveaways: Boolean(body.featureGiveaways),
+      editBattles: premium && Boolean(body.featureEditBattles),
+      giveaways: premium && Boolean(body.featureGiveaways),
       moderation: Boolean(body.featureModeration),
       music: Boolean(body.featureMusic),
     },
@@ -386,7 +412,7 @@ function buildGuildConfigFromBody(body, files = {}) {
       ? body.ticketPanelDisplayMode
       : "buttons",
     ticketNameMode: body.ticketNameMode || "number",
-    ticketTranscriptChannelId: trimField(body.ticketTranscriptChannelId),
+    ticketTranscriptChannelId: premium ? trimField(body.ticketTranscriptChannelId) : "",
     ticketTypes: parseTicketTypes(body),
     staffRoleIds: parseIds(body.staffRoleIds),
     verifiedRoleId: trimField(body.verifiedRoleId),
@@ -399,7 +425,7 @@ function buildGuildConfigFromBody(body, files = {}) {
     welcomeTitle: englishText(trimField(body.welcomeTitle)),
     welcomeMessage: englishText(trimField(body.welcomeMessage)),
     welcomeColor: trimField(body.welcomeColor),
-    welcomeImageUrl: uploadedImageUrl(files, "welcomeImageFile", body.welcomeImageUrl),
+    welcomeImageUrl: premium ? uploadedImageUrl(files, "welcomeImageFile", body.welcomeImageUrl) : "",
     editBattlePanelChannelId: trimField(body.editBattlePanelChannelId),
     giveawayChannelId: trimField(body.giveawayChannelId),
     giveawayPrize: englishText(trimField(body.giveawayPrize)),
@@ -408,12 +434,14 @@ function buildGuildConfigFromBody(body, files = {}) {
     giveawayDurationMinutes: Math.max(1, Number(body.giveawayDurationMinutes || 60)),
     giveawayImageUrl: uploadedImageUrl(files, "giveawayImageFile", body.giveawayImageUrl),
     moderationLogChannelId: trimField(body.moderationLogChannelId),
-    blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean).slice(0, 15),
+    blockedWords: trimField(body.blockedWords).split(/[\n,]+/).map((word) => word.trim()).filter(Boolean).slice(0, premium ? undefined : FREE_BLOCKED_WORD_LIMIT),
     blockedWordsMessage: englishText(trimField(body.blockedWordsMessage)),
     antiSpamMaxMessages: Math.max(2, Number(body.antiSpamMaxMessages || 5)),
     antiSpamWindowSeconds: Math.max(2, Number(body.antiSpamWindowSeconds || 6)),
     antiSpamMessage: englishText(trimField(body.antiSpamMessage)),
   };
+
+  return applyPlanLimits(guildId, config);
 }
 
 function parseTicketTypes(body) {
@@ -820,6 +848,8 @@ function layout(title, body, session = null) {
 
       addTicketType?.addEventListener("click", () => {
         if (!ticketTypes || !template) return;
+        const maxTicketTypes = Number(ticketTypes.dataset.maxTicketTypes || 0);
+        if (maxTicketTypes && document.querySelectorAll(".ticket-type-row").length >= maxTicketTypes) return;
         ticketTypes.insertAdjacentHTML("beforeend", template.innerHTML);
         wireTicketRemovers();
       });
@@ -1127,7 +1157,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
     ? `<div class="card"><strong>נשמר.</strong> ההגדרות עודכנו.</div>`
     : "";
   const guild = client.guilds.cache.get(guildId);
-  const config = getGuildConfig(guildId);
+  const premium = isPremiumGuild(guildId);
+  const config = applyPlanLimits(guildId, getGuildConfig(guildId));
   if (!guild) {
     res.status(404).send(layout("Server not found", `<div class="card">הבוט לא נמצא בשרת הזה. <a href="/">חזרה</a></div>`));
     return;
@@ -1141,9 +1172,9 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
   const categoryOptions = getCategoryOptions(guild);
   const textChannelOptions = getTextChannelOptions(guild);
   const roleOptions = getRoleOptions(guild);
-  const endedGiveaways = Object.values(readGiveaways())
+  const endedGiveaways = premium ? Object.values(readGiveaways())
     .filter((giveaway) => giveaway.guildId === guildId && giveaway.ended)
-    .sort((a, b) => Number(b.endedAt || b.endAt || 0) - Number(a.endedAt || a.endAt || 0));
+    .sort((a, b) => Number(b.endedAt || b.endAt || 0) - Number(a.endedAt || a.endAt || 0)) : [];
   const endedGiveawayOptions = endedGiveaways.map((giveaway) => ({
     id: giveaway.id,
     label: `${giveaway.prize} - ${giveaway.winnerIds?.length ? giveaway.winnerIds.map((userId) => `@${userId}`).join(", ") : "אין זוכים"}`,
@@ -1155,6 +1186,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         <a href="/">חזרה לשרתים</a>
         <h2 class="side-title">${escapeHtml(guild.name)}</h2>
         <p class="muted">${guildId}</p>
+        <p class="muted">Plan: ${premium ? "Premium" : "Free"}</p>
         <a class="nav-link active" href="#home">בית</a>
         <a class="nav-link" href="#features">הפעלה / ביטול</a>
         <a class="nav-link" href="#tickets">טיקטים</a>
@@ -1176,6 +1208,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <div class="home-hero">
             <h1 class="home-title">Bread Bot</h1>
             <p class="home-subtitle">Manage your server through the Bread Bot dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.</p>
+            <p class="muted">Current plan: <strong>${premium ? "Premium" : "Free"}</strong></p>
             <div class="stat-grid">
               <div class="stat"><strong>${config.features.tickets ? "פעיל" : "כבוי"}</strong><span class="muted">מערכת טיקטים</span></div>
               <div class="stat"><strong>${config.features.verify ? "פעיל" : "כבוי"}</strong><span class="muted">Verify</span></div>
@@ -1190,10 +1223,12 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 
         <div id="features" class="panel-section card">
           <h2>הפעלה / ביטול</h2>
+          <p class="muted">Free includes Tickets up to 3 types, Verify, basic Welcome, Music, and Anti-spam up to 15 blocked words. Premium unlocks unlimited ticket types, Transcript, Giveaways, Battle Room, unlimited blocked words, and Welcome images.</p>
           ${checkbox("featureVerify", "Verify", config.features.verify)}
           ${checkbox("featureWelcome", "Welcome", config.features.welcome)}
           ${checkbox("featureHelp", "Help / !help", config.features.help)}
           ${checkbox("featureTickets", "מערכת טיקטים", config.features.tickets)}
+          ${!premium ? premiumNotice("Battle Room and Giveaways") : ""}
           ${checkbox("featureEditBattles", "חדר קרב", config.features.editBattles)}
           ${checkbox("featureGiveaways", "Giveaways", config.features.giveaways)}
           ${checkbox("featureModeration", "חסימת קללות ואנטי ספאם", config.features.moderation)}
@@ -1227,11 +1262,12 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ], config.ticketNameMode || "number", "לפי מספר הטיקט")}
 
           <h3>סוגי טיקטים וכפתורים</h3>
-          <p class="muted">אפשר להוסיף כמה סוגי טיקטים שרוצים. כל שורה כאן הופכת לכפתור בהודעת הטיקטים.</p>
-          <div data-ticket-types>
+          <p class="muted">${premium ? "Premium allows unlimited ticket types." : "Free plan allows up to 3 ticket types."}</p>
+          <div data-ticket-types data-max-ticket-types="${premium ? "" : FREE_TICKET_TYPE_LIMIT}">
             ${renderTicketTypeRows(config.ticketTypes || DEFAULT_CONFIG.ticketTypes)}
           </div>
           <button type="button" class="button secondary" data-add-ticket-type>הוסף סוג טיקט</button>
+          ${!premium ? premiumNotice("more than 3 ticket types") : ""}
           <template id="ticket-type-template">
             <div class="ticket-type-row">
               <h4>New ticket type</h4>
@@ -1259,6 +1295,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <label>קטגוריית טיקטים</label>
           ${select("ticketCategoryId", categoryOptions, config.ticketCategoryId, "צור אוטומטית / בלי קטגוריה")}
           <label>חדר Transcript לטיקטים</label>
+          ${!premium ? premiumNotice("Ticket transcripts") : ""}
           ${select("ticketTranscriptChannelId", textChannelOptions, config.ticketTranscriptChannelId, "לא לשלוח Transcript")}
           <label>רול שיכול לפתוח טיקט</label>
           ${select("ticketOpenRoleId", roleOptions, config.ticketOpenRoleId, "כולם יכולים לפתוח")}
@@ -1302,6 +1339,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <label>צבע ההודעה</label>
           ${colorInput("welcomeColor", config.welcomeColor)}
           <label>תמונה בהודעת Welcome</label>
+          ${!premium ? premiumNotice("Welcome images") : ""}
           ${textInput("welcomeImageUrl", config.welcomeImageUrl, "https://example.com/image.png")}
           <label>או העלאת תמונה מהמחשב</label>
           ${fileInput("welcomeImageFile")}
@@ -1340,7 +1378,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           <h3>חסימת קללות</h3>
           <label>מילים אסורות</label>
           ${textArea("blockedWords", (config.blockedWords || []).join("\n"), "כל מילה בשורה נפרדת")}
-          <p class="muted">אפשר להגדיר עד 15 מילים אסורות.</p>
+          <p class="muted">${premium ? "Premium allows unlimited blocked words." : "Free plan allows up to 15 blocked words."}</p>
           <label>הודעה למשתמש אחרי מחיקה</label>
           ${textInput("blockedWordsMessage", config.blockedWordsMessage, "The message was deleted because it contains a blocked word.")}
           <h3>אנטי ספאם</h3>
@@ -1354,6 +1392,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 
         <div id="giveaways" class="panel-section card">
           <h2>Giveaways</h2>
+          ${!premium ? premiumNotice("Giveaways") : ""}
           <label>חדר ההגרלות</label>
           ${select("giveawayChannelId", textChannelOptions, config.giveawayChannelId, "בחר חדר לשליחת הגרלה")}
           <label>פרס</label>
@@ -1378,6 +1417,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 
         <div id="edit-battles" class="panel-section card">
           <h2>חדר קרב</h2>
+          ${!premium ? premiumNotice("Battle Room") : ""}
           <label>חדר פאנל חדר קרב</label>
           ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
           <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-edit-battle-panel" formmethod="post">שלח פאנל חדר קרב עכשיו</button>
@@ -1388,13 +1428,13 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
 });
 
 app.post("/guild/:guildId", requireAuth, requireGuildAdmin, imageUpload, (req, res) => {
-  setGuildConfig(req.params.guildId, buildGuildConfigFromBody(req.body, req.files));
+  setGuildConfig(req.params.guildId, buildGuildConfigFromBody(req.body, req.files, req.params.guildId));
   res.redirect(`/guild/${req.params.guildId}?saved=1`);
 });
 
 app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1413,7 +1453,7 @@ app.post("/guild/:guildId/send-ticket-panel", requireAuth, requireGuildAdmin, im
 
 app.post("/guild/:guildId/send-verify-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1429,7 +1469,7 @@ app.post("/guild/:guildId/send-verify-panel", requireAuth, requireGuildAdmin, im
 
 app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1445,7 +1485,11 @@ app.post("/guild/:guildId/send-welcome-panel", requireAuth, requireGuildAdmin, i
 
 app.post("/guild/:guildId/send-edit-battle-panel", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+  if (!isPremiumGuild(guildId)) {
+    res.status(403).send(sendResultPage("Premium required", "Battle Room is a Premium feature.", guildId, "edit-battles"));
+    return;
+  }
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1461,7 +1505,11 @@ app.post("/guild/:guildId/send-edit-battle-panel", requireAuth, requireGuildAdmi
 
 app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+  if (!isPremiumGuild(guildId)) {
+    res.status(403).send(sendResultPage("Premium required", "Giveaways are a Premium feature.", guildId, "giveaways"));
+    return;
+  }
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
 
   const guild = client.guilds.cache.get(guildId);
   const config = getGuildConfig(guildId);
@@ -1497,7 +1545,11 @@ app.post("/guild/:guildId/send-giveaway", requireAuth, requireGuildAdmin, imageU
 
 app.post("/guild/:guildId/reroll-giveaway", requireAuth, requireGuildAdmin, imageUpload, async (req, res) => {
   const { guildId } = req.params;
-  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files));
+  if (!isPremiumGuild(guildId)) {
+    res.status(403).send(sendResultPage("Premium required", "Giveaways are a Premium feature.", guildId, "giveaways"));
+    return;
+  }
+  setGuildConfig(guildId, buildGuildConfigFromBody(req.body, req.files, guildId));
 
   const giveaway = getGiveaway(req.body.rerollGiveawayId);
   if (!giveaway || giveaway.guildId !== guildId || !giveaway.ended) {
@@ -1542,6 +1594,7 @@ if (DISCORD_TOKEN) {
 } else {
   console.error("Missing DISCORD_TOKEN. Dashboard is running, but Discord server list will be empty.");
 }
+
 
 
 

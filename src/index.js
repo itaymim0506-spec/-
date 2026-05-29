@@ -36,6 +36,7 @@ const { CLIENT_ID } = process.env;
 
 const { getGuildConfig, setGuildConfig } = require("./config-store");
 const { getActiveGiveaways, getGiveaway, setGiveaway, updateGiveaway } = require("./giveaway-store");
+const { isPremiumGuild } = require("./premium-store");
 const { buildSlashCommands } = require("./slash-commands");
 const APP_VERSION = "tickets-auto-category-v2";
 
@@ -92,6 +93,8 @@ const finishVotesByChannel = new Map();
 const closingChannels = new Set();
 const spamBuckets = new Map();
 const musicQueues = new Map();
+const FREE_TICKET_TYPE_LIMIT = 3;
+const FREE_BLOCKED_WORD_LIMIT = 15;
 
 function isStaff(member) {
   const { staffRoleIds } = getGuildConfig(member.guild.id);
@@ -106,6 +109,7 @@ function canOpenTicket(member) {
 }
 
 function isFeatureEnabled(guildId, featureName) {
+  if (!isPremiumGuild(guildId) && ["editBattles", "giveaways"].includes(featureName)) return false;
   const { features } = getGuildConfig(guildId);
   return features?.[featureName] !== false;
 }
@@ -132,7 +136,10 @@ async function handleModeration(message) {
   if (!config.features?.moderation) return false;
   if (isStaff(message.member)) return false;
 
-  const blockedWord = getBlockedWord(message.content, config.blockedWords);
+  const blockedWords = isPremiumGuild(message.guild.id)
+    ? config.blockedWords
+    : (config.blockedWords || []).slice(0, FREE_BLOCKED_WORD_LIMIT);
+  const blockedWord = getBlockedWord(message.content, blockedWords);
   if (blockedWord) {
     await message.delete().catch(console.error);
     await message.channel.send(`${message.author}, ${config.blockedWordsMessage || "The message was deleted because it contains a blocked word."}`)
@@ -270,6 +277,7 @@ function messageToTranscriptLine(message) {
 }
 
 async function sendTicketTranscript(channel, closedByLabel = "Unknown") {
+  if (!isPremiumGuild(channel.guild.id)) return;
   const ticketOwnerId = getTicketOwnerId(channel);
   if (!ticketOwnerId) return;
 
@@ -343,7 +351,11 @@ function getTicketTypes(guildId) {
       intro: config.ticketIntro || "Write what you need help with. Staff will respond as soon as possible.",
     }];
 
-  return ticketTypes
+  const visibleTicketTypes = isPremiumGuild(guildId)
+    ? ticketTypes
+    : ticketTypes.slice(0, FREE_TICKET_TYPE_LIMIT);
+
+  return visibleTicketTypes
     .map((ticketType, index) => {
       const id = slug(ticketType.id || ticketType.buttonLabel || `ticket-${index + 1}`, `ticket-${index + 1}`);
       return {
@@ -871,7 +883,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     .setThumbnail(member.user.displayAvatarURL({ size: 128 }))
     .setTimestamp();
 
-  if (welcomeImageUrl) {
+  if (isPremiumGuild(member.guild.id) && welcomeImageUrl) {
     embed.setImage(welcomeImageUrl);
   }
 
