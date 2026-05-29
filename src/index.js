@@ -37,9 +37,9 @@ const { CLIENT_ID } = process.env;
 
 const { getGuildConfig, setGuildConfig } = require("./config-store");
 const { getActiveGiveaways, getGiveaway, setGiveaway, updateGiveaway } = require("./giveaway-store");
-const { isPremiumGuild } = require("./premium-store");
+const { isPremiumGuild, readPremiumGuildIds } = require("./premium-store");
 const { buildSlashCommands } = require("./slash-commands");
-const APP_VERSION = "tickets-auto-category-v2";
+const APP_VERSION = "private-chat-premium-v1";
 
 if (!DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN in .env");
@@ -857,6 +857,7 @@ function buildTicketTopic(ticketType, userId, ticketNumber) {
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag} (${APP_VERSION})`);
+  console.log(`Premium guilds: ${readPremiumGuildIds().join(",") || "none"}`);
   syncSlashCommands().catch((error) => {
     console.error("Slash command sync failed:", error);
   });
