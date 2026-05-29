@@ -1017,9 +1017,13 @@ app.get("/premium", (req, res) => {
 
 app.get("/premium-status/:guildId", requireAuth, requireGuildAdmin, (req, res) => {
   const { guildId } = req.params;
+  const config = getGuildConfig(guildId);
   res.json({
     guildId,
     premium: isPremiumGuild(guildId),
+    privateChat: config.features.editBattles,
+    giveaways: config.features.giveaways,
+    verifyRoleId: config.verifiedRoleId,
   });
 });
 
@@ -1257,6 +1261,7 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
             <h1 class="home-title">Bread Bot</h1>
             <p class="home-subtitle">Manage your server through the Bread Bot dashboard. Use the side sections to configure tickets, verification, Welcome, and the rest of the systems clearly.</p>
             <p class="muted">Current plan: <strong>${premium ? "Premium" : "Free"}</strong></p>
+            <p class="muted">Debug: Guild ID <strong>${escapeHtml(guildId)}</strong> | Premium <strong>${premium ? "true" : "false"}</strong> | Private Chat <strong>${config.features.editBattles ? "true" : "false"}</strong> | Giveaways <strong>${config.features.giveaways ? "true" : "false"}</strong></p>
             <div class="stat-grid">
               <div class="stat"><strong>${config.features.tickets ? "פעיל" : "כבוי"}</strong><span class="muted">מערכת טיקטים</span></div>
               <div class="stat"><strong>${config.features.verify ? "פעיל" : "כבוי"}</strong><span class="muted">Verify</span></div>

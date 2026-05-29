@@ -39,7 +39,7 @@ const { getGuildConfig, setGuildConfig } = require("./config-store");
 const { getActiveGiveaways, getGiveaway, setGiveaway, updateGiveaway } = require("./giveaway-store");
 const { isPremiumGuild, readPremiumGuildIds } = require("./premium-store");
 const { buildSlashCommands } = require("./slash-commands");
-const APP_VERSION = "private-chat-premium-v1";
+const APP_VERSION = "private-chat-premium-v2";
 
 if (!DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN in .env");
