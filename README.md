@@ -1,18 +1,37 @@
-# Discord Verify + Welcome Bot
+# Discord Verify, Help & Tickets Bot
 
-## Setup
+בוט Discord הכולל:
 
-1. Install Node.js 18 or newer.
-2. Run `npm install`.
-3. Fill in `.env`:
-   - `CLIENT_ID`: your Discord application client ID.
-   - `GUILD_ID`: your server ID.
-   - `WELCOME_CHANNEL_ID`: channel where welcome messages should be sent.
-   - `VERIFIED_ROLE_ID`: role to give after clicking Verify.
-4. Run `npm run deploy` to register `/setup-verify`.
-5. Run `npm start` to start the bot.
-6. In Discord, run `/setup-verify` in the channel where you want the verify button.
+- אימות משתמשים באמצעות כפתור ותפקיד.
+- הודעת ברוכים הבאים.
+- בקשת עזרה באמצעות `/help` או `!help` בזמן שיחת קול.
+- מערכת טיקטים לדיווח על שחקנים, כולל לקיחה וסגירה בידי הצוות.
 
-## Required Bot Settings
+## התקנה
 
-Enable **Server Members Intent** in the Discord Developer Portal so welcome messages can work.
+1. מתקינים Node.js בגרסה 18 ומעלה.
+2. מריצים `npm install`.
+3. מעתיקים את `.env.example` לקובץ בשם `.env` וממלאים את הערכים.
+4. מריצים `npm run deploy` לרישום פקודות ה־Slash.
+5. מריצים `npm start`.
+6. בתוך Discord מריצים `/setup-verify` ו־`/setup-ticket` בערוצים המתאימים.
+
+## פריסת פקודות
+
+ברירת המחדל היא פריסה גלובלית, המתאימה לבוט ציבורי. עדכון פקודות גלובליות עשוי לקחת זמן עד שיופיע בכל השרתים.
+
+לבדיקה מיידית בשרת אחד, מגדירים `DEPLOY_SCOPE=guild` וממלאים `GUILD_ID`.
+
+## הרשאות נדרשות
+
+- View Channels
+- Send Messages
+- Read Message History
+- Manage Roles
+- Manage Channels
+
+תפקיד הבוט חייב להימצא מעל תפקיד האימות. בנוסף יש להפעיל ב־Discord Developer Portal את **Server Members Intent** ואת **Message Content Intent**.
+
+## אבטחה
+
+אין להעלות או לשלוח את `.env`, משום שהוא מכיל את טוקן הבוט. אם הטוקן נחשף, יש לאפס אותו מיד ב־Discord Developer Portal.
