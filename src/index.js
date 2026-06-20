@@ -780,14 +780,17 @@ function buildTicketActionRow({ claimedBy } = {}) {
   );
 }
 
-function buildEditBattlePanel() {
+function buildEditBattlePanel(guildId) {
+  const config = getGuildConfig(guildId);
   const embed = new EmbedBuilder()
-    .setColor(0x8b2cff)
-    .setTitle("Private Chat")
-    .setDescription("Click the button, choose the person you want to invite, and ask them to invite you back. A private room opens only when both users invite each other.");
+    .setColor(parseColor(config.privateChatPanelColor, 0x8b2cff))
+    .setTitle(String(config.privateChatPanelTitle || "Private Chat").slice(0, 256))
+    .setDescription(String(config.privateChatPanelDescription || "Click the button, choose the person you want to invite, and ask them to invite you back. A private room opens only when both users invite each other.").slice(0, 4096));
 
   const files = [];
-  if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
+  if (/^https?:\/\//i.test(config.privateChatPanelImageUrl || "")) {
+    embed.setImage(config.privateChatPanelImageUrl);
+  } else if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
     embed.setImage(`attachment://${EDIT_BATTLE_IMAGE_NAME}`);
     files.push({ attachment: EDIT_BATTLE_IMAGE_PATH, name: EDIT_BATTLE_IMAGE_NAME });
   }
@@ -795,8 +798,8 @@ function buildEditBattlePanel() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
-      .setLabel("Start Private Chat")
-      .setStyle(ButtonStyle.Primary),
+      .setLabel(String(config.privateChatButtonLabel || "Start Private Chat").slice(0, 80))
+      .setStyle(getTicketButtonStyle(config.privateChatButtonStyle)),
   );
 
   return { embeds: [embed], components: [row], files };
@@ -821,7 +824,7 @@ async function sendFreshPanels(guild, channel) {
   if (features.editBattles) {
     const editBattleChannel = await guild.channels.fetch(editBattlePanelChannelId).catch(() => null);
     const targetChannel = editBattleChannel?.isTextBased() ? editBattleChannel : channel;
-    await targetChannel.send(buildEditBattlePanel());
+    await targetChannel.send(buildEditBattlePanel(guild.id));
     sentPanels.push("Private Chat");
   }
 
@@ -988,7 +991,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    await interaction.channel.send(buildEditBattlePanel());
+    await interaction.channel.send(buildEditBattlePanel(interaction.guild.id));
     await interaction.reply({ content: "Private Chat panel posted.", flags: 64 });
     return;
   }
