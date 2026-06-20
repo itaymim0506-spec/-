@@ -75,6 +75,7 @@ const DEFAULT_CONFIG = {
   privateChatButtonStyle: "primary",
   privateChatRandomButtonLabel: "Random Private Chat",
   privateChatRandomButtonStyle: "success",
+  privateChatInvitationsButtonLabel: "My Invitations",
   privateChatPanelImageUrl: "",
   giveawayChannelId: "",
   giveawayPrize: "New prize",

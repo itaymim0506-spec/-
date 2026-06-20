@@ -811,7 +811,7 @@ function buildEditBattlePanel(guildId) {
       .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
     new ButtonBuilder()
       .setCustomId(PRIVATE_CHAT_INVITATIONS_BUTTON_ID)
-      .setLabel("My Invitations")
+      .setLabel(String(config.privateChatInvitationsButtonLabel || "My Invitations").slice(0, 80))
       .setStyle(ButtonStyle.Secondary),
   );
 

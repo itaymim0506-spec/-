@@ -325,7 +325,7 @@ function buildEditBattlePanel(guildId) {
       .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
     new ButtonBuilder()
       .setCustomId(PRIVATE_CHAT_INVITATIONS_BUTTON_ID)
-      .setLabel("My Invitations")
+      .setLabel(String(config.privateChatInvitationsButtonLabel || "My Invitations").slice(0, 80))
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -375,6 +375,7 @@ function applyPlanLimits(guildId, config) {
     privateChatButtonStyle: DEFAULT_CONFIG.privateChatButtonStyle,
     privateChatRandomButtonLabel: DEFAULT_CONFIG.privateChatRandomButtonLabel,
     privateChatRandomButtonStyle: DEFAULT_CONFIG.privateChatRandomButtonStyle,
+    privateChatInvitationsButtonLabel: DEFAULT_CONFIG.privateChatInvitationsButtonLabel,
     privateChatPanelImageUrl: "",
     blockedWords: (config.blockedWords || []).slice(0, FREE_BLOCKED_WORD_LIMIT),
   };
@@ -470,6 +471,7 @@ function buildGuildConfigFromBody(body, files = {}, guildId = "") {
     privateChatRandomButtonStyle: premium && ["primary", "secondary", "success", "danger"].includes(body.privateChatRandomButtonStyle)
       ? body.privateChatRandomButtonStyle
       : DEFAULT_CONFIG.privateChatRandomButtonStyle,
+    privateChatInvitationsButtonLabel: premium ? englishText(trimField(body.privateChatInvitationsButtonLabel)).slice(0, 80) : DEFAULT_CONFIG.privateChatInvitationsButtonLabel,
     privateChatPanelImageUrl: premium ? uploadedImageUrl(files, "privateChatPanelImageFile", body.privateChatPanelImageUrl) : "",
     giveawayChannelId: keepExistingWhenBlank(body.giveawayChannelId, existingConfig.giveawayChannelId),
     giveawayPrize: englishText(trimField(body.giveawayPrize)),
@@ -1533,6 +1535,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               { id: "success", label: "ירוק" },
               { id: "danger", label: "אדום" },
             ], config.privateChatRandomButtonStyle || "success", "ירוק")}
+            <label>Invitations button text</label>
+            ${textInput("privateChatInvitationsButtonLabel", config.privateChatInvitationsButtonLabel, "My Invitations")}
             <label>תמונה להודעה</label>
             ${textInput("privateChatPanelImageUrl", config.privateChatPanelImageUrl, "https://example.com/image.png")}
             <label>או העלאת תמונה מהמחשב</label>
