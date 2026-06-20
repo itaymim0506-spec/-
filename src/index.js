@@ -66,6 +66,7 @@ const TICKET_PANEL_IMAGE_PATH = path.join(
 const TICKET_PANEL_IMAGE_NAME = "tickets-banner.png";
 const EDIT_BATTLE_PANEL_CHANNEL_ID = "1504184944283488328";
 const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
+const RANDOM_PRIVATE_CHAT_BUTTON_ID = "random_private_chat";
 const PRIVATE_CHAT_USER_SELECT_ID = "private_chat_user_select";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const EDIT_BATTLE_IMAGE_PATH = path.join(
@@ -91,6 +92,7 @@ client.on(Events.Error, (error) => {
 });
 
 const privateChatInvites = new Map();
+const randomPrivateChatQueues = new Map();
 const finishVotesByChannel = new Map();
 const closingChannels = new Set();
 const spamBuckets = new Map();
@@ -800,9 +802,78 @@ function buildEditBattlePanel(guildId) {
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
       .setLabel(String(config.privateChatButtonLabel || "Start Private Chat").slice(0, 80))
       .setStyle(getTicketButtonStyle(config.privateChatButtonStyle)),
+    new ButtonBuilder()
+      .setCustomId(RANDOM_PRIVATE_CHAT_BUTTON_ID)
+      .setLabel(String(config.privateChatRandomButtonLabel || "Random Private Chat").slice(0, 80))
+      .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
   );
 
   return { embeds: [embed], components: [row], files };
+}
+
+async function createRandomPrivateChatChannel(guild, parentId, firstUserId, secondUserId) {
+  const existingChannel = guild.channels.cache.find((channel) => {
+    const userIds = getEditBattleUserIds(channel);
+    return userIds.length === 2
+      && userIds.includes(firstUserId)
+      && userIds.includes(secondUserId);
+  });
+  if (existingChannel) return existingChannel;
+
+  const permissionOverwrites = [
+    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+    {
+      id: firstUserId,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+      ],
+    },
+    {
+      id: secondUserId,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+      ],
+    },
+    {
+      id: client.user.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ManageChannels,
+        PermissionFlagsBits.ReadMessageHistory,
+      ],
+    },
+  ];
+
+  const privateChannel = await guild.channels.create({
+    name: `random-chat-${firstUserId.slice(-4)}-${secondUserId.slice(-4)}`,
+    type: ChannelType.GuildText,
+    parent: parentId || null,
+    topic: `private-chat:${firstUserId}:${secondUserId}`,
+    permissionOverwrites,
+  }).catch((error) => {
+    console.error("Could not create random private chat:", error);
+    return null;
+  });
+
+  if (!privateChannel) return null;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x8b2cff)
+    .setTitle("Random Private Chat")
+    .setDescription(`<@${firstUserId}> ו־<@${secondUserId}> הותאמתם באופן אקראי. רק שניכם יכולים לראות ולכתוב בחדר הזה.\n\nכדי לסגור אותו אוטומטית, שניכם צריכים לכתוב \`!סיימתי\`.`)
+    .setTimestamp();
+
+  await privateChannel.send({
+    content: `<@${firstUserId}> <@${secondUserId}>`,
+    embeds: [embed],
+  });
+
+  return privateChannel;
 }
 
 async function sendFreshPanels(guild, channel) {
@@ -1033,6 +1104,64 @@ client.on(Events.InteractionCreate, async (interaction) => {
       ],
       flags: 64,
     });
+    return;
+  }
+
+  if (interaction.isButton() && interaction.customId === RANDOM_PRIVATE_CHAT_BUTTON_ID) {
+    if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
+      await interaction.reply({ content: "Private Chat is disabled on this server.", flags: 64 });
+      return;
+    }
+
+    const guildId = interaction.guild.id;
+    const userId = interaction.user.id;
+    const queue = randomPrivateChatQueues.get(guildId) ?? [];
+    randomPrivateChatQueues.set(guildId, queue);
+
+    const ownQueueIndex = queue.indexOf(userId);
+    if (ownQueueIndex !== -1) {
+      queue.splice(ownQueueIndex, 1);
+      if (!queue.length) randomPrivateChatQueues.delete(guildId);
+      await interaction.reply({ content: "יצאת מההמתנה להתאמה אקראית.", flags: 64 });
+      return;
+    }
+
+    let matchedUserId = null;
+    while (queue.length && !matchedUserId) {
+      const candidateId = queue.shift();
+      if (candidateId === userId) continue;
+      const candidate = await interaction.guild.members.fetch(candidateId).catch(() => null);
+      if (candidate && !candidate.user.bot) matchedUserId = candidateId;
+    }
+
+    if (!queue.length) randomPrivateChatQueues.delete(guildId);
+
+    if (!matchedUserId) {
+      queue.push(userId);
+      randomPrivateChatQueues.set(guildId, queue);
+      await interaction.reply({
+        content: "נכנסת להמתנה. ברגע שמשתמש נוסף ילחץ על הכפתור ייפתח לכם חדר פרטי.",
+        flags: 64,
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: 64 });
+    const privateChannel = await createRandomPrivateChatChannel(
+      interaction.guild,
+      interaction.channel.parentId,
+      matchedUserId,
+      userId,
+    );
+
+    if (!privateChannel) {
+      queue.unshift(matchedUserId);
+      randomPrivateChatQueues.set(guildId, queue);
+      await interaction.editReply("לא הצלחתי לפתוח חדר פרטי. צריך לבדוק שלבוט יש הרשאת Manage Channels.");
+      return;
+    }
+
+    await interaction.editReply(`נמצאה התאמה! החדר הפרטי שלכם: ${privateChannel}`);
     return;
   }
 

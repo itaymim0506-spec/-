@@ -35,6 +35,7 @@ const VERIFY_BUTTON_ID = "verify_member";
 const TICKET_SELECT_MENU_ID = "select_ticket_type";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
+const RANDOM_PRIVATE_CHAT_BUTTON_ID = "random_private_chat";
 const TICKET_PANEL_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
   "Downloads",
@@ -317,6 +318,10 @@ function buildEditBattlePanel(guildId) {
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
       .setLabel(String(config.privateChatButtonLabel || "Start Private Chat").slice(0, 80))
       .setStyle(getTicketButtonStyle(config.privateChatButtonStyle)),
+    new ButtonBuilder()
+      .setCustomId(RANDOM_PRIVATE_CHAT_BUTTON_ID)
+      .setLabel(String(config.privateChatRandomButtonLabel || "Random Private Chat").slice(0, 80))
+      .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
   );
 
   return { embeds: [embed], components: [row], files };
@@ -363,6 +368,8 @@ function applyPlanLimits(guildId, config) {
     privateChatPanelColor: DEFAULT_CONFIG.privateChatPanelColor,
     privateChatButtonLabel: DEFAULT_CONFIG.privateChatButtonLabel,
     privateChatButtonStyle: DEFAULT_CONFIG.privateChatButtonStyle,
+    privateChatRandomButtonLabel: DEFAULT_CONFIG.privateChatRandomButtonLabel,
+    privateChatRandomButtonStyle: DEFAULT_CONFIG.privateChatRandomButtonStyle,
     privateChatPanelImageUrl: "",
     blockedWords: (config.blockedWords || []).slice(0, FREE_BLOCKED_WORD_LIMIT),
   };
@@ -454,6 +461,10 @@ function buildGuildConfigFromBody(body, files = {}, guildId = "") {
     privateChatButtonStyle: premium && ["primary", "secondary", "success", "danger"].includes(body.privateChatButtonStyle)
       ? body.privateChatButtonStyle
       : DEFAULT_CONFIG.privateChatButtonStyle,
+    privateChatRandomButtonLabel: premium ? englishText(trimField(body.privateChatRandomButtonLabel)).slice(0, 80) : DEFAULT_CONFIG.privateChatRandomButtonLabel,
+    privateChatRandomButtonStyle: premium && ["primary", "secondary", "success", "danger"].includes(body.privateChatRandomButtonStyle)
+      ? body.privateChatRandomButtonStyle
+      : DEFAULT_CONFIG.privateChatRandomButtonStyle,
     privateChatPanelImageUrl: premium ? uploadedImageUrl(files, "privateChatPanelImageFile", body.privateChatPanelImageUrl) : "",
     giveawayChannelId: keepExistingWhenBlank(body.giveawayChannelId, existingConfig.giveawayChannelId),
     giveawayPrize: englishText(trimField(body.giveawayPrize)),
@@ -1508,6 +1519,15 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               { id: "success", label: "ירוק" },
               { id: "danger", label: "אדום" },
             ], config.privateChatButtonStyle || "primary", "כחול")}
+            <label>טקסט כפתור התאמה אקראית</label>
+            ${textInput("privateChatRandomButtonLabel", config.privateChatRandomButtonLabel, "Random Private Chat")}
+            <label>צבע כפתור התאמה אקראית</label>
+            ${select("privateChatRandomButtonStyle", [
+              { id: "primary", label: "כחול" },
+              { id: "secondary", label: "אפור" },
+              { id: "success", label: "ירוק" },
+              { id: "danger", label: "אדום" },
+            ], config.privateChatRandomButtonStyle || "success", "ירוק")}
             <label>תמונה להודעה</label>
             ${textInput("privateChatPanelImageUrl", config.privateChatPanelImageUrl, "https://example.com/image.png")}
             <label>או העלאת תמונה מהמחשב</label>

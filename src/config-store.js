@@ -73,6 +73,8 @@ const DEFAULT_CONFIG = {
   privateChatPanelColor: "#8b2cff",
   privateChatButtonLabel: "Start Private Chat",
   privateChatButtonStyle: "primary",
+  privateChatRandomButtonLabel: "Random Private Chat",
+  privateChatRandomButtonStyle: "success",
   privateChatPanelImageUrl: "",
   giveawayChannelId: "",
   giveawayPrize: "New prize",
