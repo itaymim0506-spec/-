@@ -1442,14 +1442,14 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
         </div>
 
         <div id="music" class="panel-section card">
-          <h2>מוזיקה</h2>
-          <p class="muted">פקודות המוזיקה עובדות בחדר קול. המשתמש צריך להיות בשיחה ואז להשתמש בפקודות האלה בדיסקורד.</p>
+          <h2>Music</h2>
+          <p class="muted">Music commands work in a voice channel. Join a voice channel first, then use these commands in Discord.</p>
           <div class="choice-list">
-            <p><code>/music play url</code> - ניגון שיר מקישור</p>
-            <p><code>/music queue</code> - הצגת התור</p>
-            <p><code>/music skip</code> - דילוג לשיר הבא</p>
-            <p><code>/music stop</code> - עצירה וניקוי התור</p>
-            <p><code>/music leave</code> - הוצאת הבוט מהשיחה</p>
+            <p><code>/music play url</code> - Play a song from a link</p>
+            <p><code>/music queue</code> - Show the music queue</p>
+            <p><code>/music skip</code> - Skip to the next song</p>
+            <p><code>/music stop</code> - Stop playback and clear the queue</p>
+            <p><code>/music leave</code> - Disconnect the bot from the voice channel</p>
           </div>
         </div>
 
@@ -1519,9 +1519,9 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               { id: "success", label: "ירוק" },
               { id: "danger", label: "אדום" },
             ], config.privateChatButtonStyle || "primary", "כחול")}
-            <label>טקסט כפתור התאמה אקראית</label>
+            <label>Random match button text</label>
             ${textInput("privateChatRandomButtonLabel", config.privateChatRandomButtonLabel, "Random Private Chat")}
-            <label>צבע כפתור התאמה אקראית</label>
+            <label>Random match button color</label>
             ${select("privateChatRandomButtonStyle", [
               { id: "primary", label: "כחול" },
               { id: "secondary", label: "אפור" },
