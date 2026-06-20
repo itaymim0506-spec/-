@@ -36,6 +36,7 @@ const TICKET_SELECT_MENU_ID = "select_ticket_type";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
 const RANDOM_PRIVATE_CHAT_BUTTON_ID = "random_private_chat";
+const PRIVATE_CHAT_INVITATIONS_BUTTON_ID = "private_chat_invitations";
 const TICKET_PANEL_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
   "Downloads",
@@ -322,6 +323,10 @@ function buildEditBattlePanel(guildId) {
       .setCustomId(RANDOM_PRIVATE_CHAT_BUTTON_ID)
       .setLabel(String(config.privateChatRandomButtonLabel || "Random Private Chat").slice(0, 80))
       .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
+    new ButtonBuilder()
+      .setCustomId(PRIVATE_CHAT_INVITATIONS_BUTTON_ID)
+      .setLabel("My Invitations")
+      .setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [row], files };

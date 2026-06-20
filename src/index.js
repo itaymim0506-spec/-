@@ -67,6 +67,9 @@ const TICKET_PANEL_IMAGE_NAME = "tickets-banner.png";
 const EDIT_BATTLE_PANEL_CHANNEL_ID = "1504184944283488328";
 const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
 const RANDOM_PRIVATE_CHAT_BUTTON_ID = "random_private_chat";
+const PRIVATE_CHAT_INVITATIONS_BUTTON_ID = "private_chat_invitations";
+const PRIVATE_CHAT_ACCEPT_PREFIX = "private_chat_accept:";
+const PRIVATE_CHAT_DECLINE_PREFIX = "private_chat_decline:";
 const PRIVATE_CHAT_USER_SELECT_ID = "private_chat_user_select";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const EDIT_BATTLE_IMAGE_PATH = path.join(
@@ -806,12 +809,16 @@ function buildEditBattlePanel(guildId) {
       .setCustomId(RANDOM_PRIVATE_CHAT_BUTTON_ID)
       .setLabel(String(config.privateChatRandomButtonLabel || "Random Private Chat").slice(0, 80))
       .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
+    new ButtonBuilder()
+      .setCustomId(PRIVATE_CHAT_INVITATIONS_BUTTON_ID)
+      .setLabel("My Invitations")
+      .setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [row], files };
 }
 
-async function createRandomPrivateChatChannel(guild, parentId, firstUserId, secondUserId) {
+async function createPrivateChatChannel(guild, parentId, firstUserId, secondUserId, { random = false } = {}) {
   const existingChannel = guild.channels.cache.find((channel) => {
     const userIds = getEditBattleUserIds(channel);
     return userIds.length === 2
@@ -850,7 +857,7 @@ async function createRandomPrivateChatChannel(guild, parentId, firstUserId, seco
   ];
 
   const privateChannel = await guild.channels.create({
-    name: `random-chat-${firstUserId.slice(-4)}-${secondUserId.slice(-4)}`,
+    name: `${random ? "random-chat" : "private-chat"}-${firstUserId.slice(-4)}-${secondUserId.slice(-4)}`,
     type: ChannelType.GuildText,
     parent: parentId || null,
     topic: `private-chat:${firstUserId}:${secondUserId}`,
@@ -864,8 +871,10 @@ async function createRandomPrivateChatChannel(guild, parentId, firstUserId, seco
 
   const embed = new EmbedBuilder()
     .setColor(0x8b2cff)
-    .setTitle("Random Private Chat")
-    .setDescription(`<@${firstUserId}> ו־<@${secondUserId}> הותאמתם באופן אקראי. רק שניכם יכולים לראות ולכתוב בחדר הזה.\n\nכדי לסגור אותו אוטומטית, שניכם צריכים לכתוב \`!סיימתי\`.`)
+    .setTitle(random ? "Random Private Chat" : "Private Chat Opened")
+    .setDescription(random
+      ? `<@${firstUserId}> ו־<@${secondUserId}> הותאמתם באופן אקראי. רק שניכם יכולים לראות ולכתוב בחדר הזה.\n\nכדי לסגור אותו אוטומטית, שניכם צריכים לכתוב \`!סיימתי\`.`
+      : `<@${firstUserId}> ו־<@${secondUserId}>, ההזמנה אושרה. רק שניכם יכולים לראות ולכתוב בחדר הזה.\n\nכדי לסגור אותו אוטומטית, שניכם צריכים לכתוב \`!סיימתי\`.`)
     .setTimestamp();
 
   await privateChannel.send({
@@ -1147,11 +1156,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     await interaction.deferReply({ flags: 64 });
-    const privateChannel = await createRandomPrivateChatChannel(
+    const privateChannel = await createPrivateChatChannel(
       interaction.guild,
       interaction.channel.parentId,
       matchedUserId,
       userId,
+      { random: true },
     );
 
     if (!privateChannel) {
@@ -1162,6 +1172,101 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     await interaction.editReply(`נמצאה התאמה! החדר הפרטי שלכם: ${privateChannel}`);
+    return;
+  }
+
+  if (interaction.isButton() && interaction.customId === PRIVATE_CHAT_INVITATIONS_BUTTON_ID) {
+    if (!isFeatureEnabled(interaction.guild.id, "editBattles")) {
+      await interaction.reply({ content: "Private Chat is disabled on this server.", flags: 64 });
+      return;
+    }
+
+    const guildInvites = privateChatInvites.get(interaction.guild.id) ?? new Map();
+    const invitations = [...guildInvites.entries()]
+      .filter(([, targetId]) => targetId === interaction.user.id)
+      .slice(0, 5);
+
+    if (!invitations.length) {
+      await interaction.reply({ content: "You do not have any pending Private Chat invitations.", flags: 64 });
+      return;
+    }
+
+    const rows = invitations.map(([inviterId]) => new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PRIVATE_CHAT_ACCEPT_PREFIX}${inviterId}`)
+        .setLabel(`Accept ${inviterId.slice(-4)}`)
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`${PRIVATE_CHAT_DECLINE_PREFIX}${inviterId}`)
+        .setLabel(`Decline ${inviterId.slice(-4)}`)
+        .setStyle(ButtonStyle.Danger),
+    ));
+
+    const invitationList = invitations
+      .map(([inviterId]) => `• <@${inviterId}>`)
+      .join("\n");
+    await interaction.reply({
+      content: `Your pending Private Chat invitations:\n${invitationList}`,
+      components: rows,
+      flags: 64,
+    });
+    return;
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith(PRIVATE_CHAT_DECLINE_PREFIX)) {
+    const inviterId = interaction.customId.slice(PRIVATE_CHAT_DECLINE_PREFIX.length);
+    const guildInvites = privateChatInvites.get(interaction.guild.id) ?? new Map();
+    if (guildInvites.get(inviterId) !== interaction.user.id) {
+      await interaction.reply({ content: "This invitation is no longer available.", flags: 64 });
+      return;
+    }
+
+    guildInvites.delete(inviterId);
+    if (!guildInvites.size) privateChatInvites.delete(interaction.guild.id);
+    await interaction.update({
+      content: `Invitation from <@${inviterId}> declined.`,
+      components: [],
+    });
+    return;
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith(PRIVATE_CHAT_ACCEPT_PREFIX)) {
+    const inviterId = interaction.customId.slice(PRIVATE_CHAT_ACCEPT_PREFIX.length);
+    const guildInvites = privateChatInvites.get(interaction.guild.id) ?? new Map();
+    if (guildInvites.get(inviterId) !== interaction.user.id) {
+      await interaction.reply({ content: "This invitation is no longer available.", flags: 64 });
+      return;
+    }
+
+    const inviter = await interaction.guild.members.fetch(inviterId).catch(() => null);
+    if (!inviter || inviter.user.bot) {
+      guildInvites.delete(inviterId);
+      await interaction.update({ content: "The user who sent this invitation is no longer available.", components: [] });
+      return;
+    }
+
+    await interaction.deferUpdate();
+    const privateChannel = await createPrivateChatChannel(
+      interaction.guild,
+      interaction.channel.parentId,
+      inviterId,
+      interaction.user.id,
+    );
+
+    if (!privateChannel) {
+      await interaction.editReply({
+        content: "I could not open the private chat. Check that the bot has Manage Channels permission.",
+        components: [],
+      });
+      return;
+    }
+
+    guildInvites.delete(inviterId);
+    if (!guildInvites.size) privateChatInvites.delete(interaction.guild.id);
+    await interaction.editReply({
+      content: `Invitation accepted. Your private chat: ${privateChannel}`,
+      components: [],
+    });
     return;
   }
 
@@ -1186,65 +1291,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const guildInvites = privateChatInvites.get(interaction.guild.id) ?? new Map();
     privateChatInvites.set(interaction.guild.id, guildInvites);
-    const targetInvitedBack = guildInvites.get(targetId) === inviterId;
     guildInvites.set(inviterId, targetId);
 
-    if (!targetInvitedBack) {
-      await interaction.reply({
-        content: `Invite saved. <@${targetId}> also needs to press **Start Private Chat** and choose you.`,
-        flags: 64,
-      });
-      return;
-    }
-
-    guildInvites.delete(inviterId);
-    guildInvites.delete(targetId);
-
-    const permissionOverwrites = [
-      { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-      {
-        id: inviterId,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-        ],
-      },
-      {
-        id: targetId,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-        ],
-      },
-      {
-        id: client.user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ManageChannels,
-          PermissionFlagsBits.ReadMessageHistory,
-        ],
-      },
-    ];
-
-    const privateChannel = await interaction.guild.channels.create({
-      name: `private-chat-${inviterId.slice(-4)}-${targetId.slice(-4)}`,
-      type: ChannelType.GuildText,
-      parent: interaction.channel.parentId,
-      topic: `private-chat:${inviterId}:${targetId}`,
-      permissionOverwrites,
-    }).catch(async (error) => {
-      console.error(error);
-      await interaction.reply({
-        content: "I could not open the private chat. Check that I have Manage Channels.",
-        flags: 64,
-      });
-      return null;
+    await interaction.reply({
+      content: `Invitation sent to <@${targetId}>. They can open **My Invitations** in the Private Chat panel to accept or decline it.`,
+      flags: 64,
     });
-
-    if (!privateChannel) return;
+    return;
 
     const embed = new EmbedBuilder()
       .setColor(0x8b2cff)
