@@ -75,6 +75,7 @@ const imageUpload = upload.fields([
   { name: "verifyImageFile", maxCount: 1 },
   { name: "welcomeImageFile", maxCount: 1 },
   { name: "giveawayImageFile", maxCount: 1 },
+  { name: "privateChatPanelImageFile", maxCount: 1 },
 ]);
 
 app.use(express.urlencoded({ extended: true }));
@@ -296,14 +297,17 @@ function pickGiveawayWinners(participants, winnerCount, previousWinnerIds = []) 
   return winners;
 }
 
-function buildEditBattlePanel() {
+function buildEditBattlePanel(guildId) {
+  const config = getGuildConfig(guildId);
   const embed = new EmbedBuilder()
-    .setColor(0x8b2cff)
-    .setTitle("Private Chat")
-    .setDescription("Click the button, choose the person you want to invite, and ask them to invite you back. A private room opens only when both users invite each other.");
+    .setColor(parseColor(config.privateChatPanelColor, 0x8b2cff))
+    .setTitle(String(config.privateChatPanelTitle || "Private Chat").slice(0, 256))
+    .setDescription(String(config.privateChatPanelDescription || "Click the button, choose the person you want to invite, and ask them to invite you back. A private room opens only when both users invite each other.").slice(0, 4096));
 
   const files = [];
-  if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
+  if (/^https?:\/\//i.test(config.privateChatPanelImageUrl || "")) {
+    embed.setImage(config.privateChatPanelImageUrl);
+  } else if (fs.existsSync(EDIT_BATTLE_IMAGE_PATH)) {
     embed.setImage(`attachment://${EDIT_BATTLE_IMAGE_NAME}`);
     files.push({ attachment: EDIT_BATTLE_IMAGE_PATH, name: EDIT_BATTLE_IMAGE_NAME });
   }
@@ -311,8 +315,8 @@ function buildEditBattlePanel() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(EDIT_BATTLE_JOIN_BUTTON_ID)
-      .setLabel("Start Private Chat")
-      .setStyle(ButtonStyle.Primary),
+      .setLabel(String(config.privateChatButtonLabel || "Start Private Chat").slice(0, 80))
+      .setStyle(getTicketButtonStyle(config.privateChatButtonStyle)),
   );
 
   return { embeds: [embed], components: [row], files };
@@ -354,6 +358,12 @@ function applyPlanLimits(guildId, config) {
     ticketTranscriptChannelId: "",
     ticketTypes: (config.ticketTypes || DEFAULT_CONFIG.ticketTypes).slice(0, FREE_TICKET_TYPE_LIMIT),
     welcomeImageUrl: "",
+    privateChatPanelTitle: DEFAULT_CONFIG.privateChatPanelTitle,
+    privateChatPanelDescription: DEFAULT_CONFIG.privateChatPanelDescription,
+    privateChatPanelColor: DEFAULT_CONFIG.privateChatPanelColor,
+    privateChatButtonLabel: DEFAULT_CONFIG.privateChatButtonLabel,
+    privateChatButtonStyle: DEFAULT_CONFIG.privateChatButtonStyle,
+    privateChatPanelImageUrl: "",
     blockedWords: (config.blockedWords || []).slice(0, FREE_BLOCKED_WORD_LIMIT),
   };
 }
@@ -437,6 +447,14 @@ function buildGuildConfigFromBody(body, files = {}, guildId = "") {
     welcomeColor: trimField(body.welcomeColor),
     welcomeImageUrl: premium ? uploadedImageUrl(files, "welcomeImageFile", body.welcomeImageUrl) : "",
     editBattlePanelChannelId: keepExistingWhenBlank(body.editBattlePanelChannelId, existingConfig.editBattlePanelChannelId),
+    privateChatPanelTitle: premium ? englishText(trimField(body.privateChatPanelTitle)).slice(0, 256) : DEFAULT_CONFIG.privateChatPanelTitle,
+    privateChatPanelDescription: premium ? englishText(trimField(body.privateChatPanelDescription)).slice(0, 4096) : DEFAULT_CONFIG.privateChatPanelDescription,
+    privateChatPanelColor: premium ? trimField(body.privateChatPanelColor) : DEFAULT_CONFIG.privateChatPanelColor,
+    privateChatButtonLabel: premium ? englishText(trimField(body.privateChatButtonLabel)).slice(0, 80) : DEFAULT_CONFIG.privateChatButtonLabel,
+    privateChatButtonStyle: premium && ["primary", "secondary", "success", "danger"].includes(body.privateChatButtonStyle)
+      ? body.privateChatButtonStyle
+      : DEFAULT_CONFIG.privateChatButtonStyle,
+    privateChatPanelImageUrl: premium ? uploadedImageUrl(files, "privateChatPanelImageFile", body.privateChatPanelImageUrl) : "",
     giveawayChannelId: keepExistingWhenBlank(body.giveawayChannelId, existingConfig.giveawayChannelId),
     giveawayPrize: englishText(trimField(body.giveawayPrize)),
     giveawayDescription: englishText(trimField(body.giveawayDescription)),
@@ -1004,7 +1022,7 @@ app.get("/premium", (req, res) => {
         <li>Unlimited ticket types ${premiumBadge()}</li>
         <li>Ticket transcripts ${premiumBadge()}</li>
         <li>Giveaways ${premiumBadge()}</li>
-        <li>Private Chat ${premiumBadge()}</li>
+        <li>Private Chat with custom panel design ${premiumBadge()}</li>
         <li>Unlimited blocked words for Anti-spam ${premiumBadge()}</li>
         <li>Welcome images ${premiumBadge()}</li>
       </ul>
@@ -1473,6 +1491,28 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
           ${!premium ? premiumNotice("Private Chat") : ""}
           <label>Private Chat panel channel</label>
           ${select("editBattlePanelChannelId", textChannelOptions, config.editBattlePanelChannelId, "החדר שבו מפעילים")}
+          ${premium ? `
+            <h3>עיצוב הודעת Private Chat</h3>
+            <label>כותרת ההודעה</label>
+            ${textInput("privateChatPanelTitle", config.privateChatPanelTitle, "Private Chat")}
+            <label>תיאור ההודעה</label>
+            ${textArea("privateChatPanelDescription", config.privateChatPanelDescription, "הסבר למשתמשים כיצד לפתוח שיחה פרטית.")}
+            <label>צבע ההודעה</label>
+            ${colorInput("privateChatPanelColor", config.privateChatPanelColor)}
+            <label>טקסט הכפתור</label>
+            ${textInput("privateChatButtonLabel", config.privateChatButtonLabel, "Start Private Chat")}
+            <label>צבע הכפתור</label>
+            ${select("privateChatButtonStyle", [
+              { id: "primary", label: "כחול" },
+              { id: "secondary", label: "אפור" },
+              { id: "success", label: "ירוק" },
+              { id: "danger", label: "אדום" },
+            ], config.privateChatButtonStyle || "primary", "כחול")}
+            <label>תמונה להודעה</label>
+            ${textInput("privateChatPanelImageUrl", config.privateChatPanelImageUrl, "https://example.com/image.png")}
+            <label>או העלאת תמונה מהמחשב</label>
+            ${fileInput("privateChatPanelImageFile")}
+          ` : ""}
           <button type="submit" class="button secondary" formaction="/guild/${guildId}/send-edit-battle-panel" formmethod="post">Send Private Chat panel now</button>
         </div>
       </section>
@@ -1552,7 +1592,7 @@ app.post("/guild/:guildId/send-edit-battle-panel", requireAuth, requireGuildAdmi
     return;
   }
 
-  await channel.send(buildEditBattlePanel());
+  await channel.send(buildEditBattlePanel(guildId));
   res.send(sendResultPage("Sent", "Private Chat panel was sent to the selected channel.", guildId, "edit-battles"));
 });
 

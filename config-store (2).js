@@ -4,7 +4,10 @@ const path = require("path");
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const PREMIUM_PATH = path.join(DATA_DIR, "premium-guilds.json");
 const GUILD_CONFIG_PATH = path.join(DATA_DIR, "guild-config.json");
-const DEFAULT_PREMIUM_GUILD_IDS = ["1505251555689893978"];
+const DEFAULT_PREMIUM_GUILD_IDS = [
+  "1498364398279065750",
+  "1505251555689893978",
+];
 
 function ensureStore() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
