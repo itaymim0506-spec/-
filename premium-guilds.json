@@ -1,0 +1,31 @@
+{
+  "1505251555689893978": {
+    "premium": true,
+    "features": {
+      "verify": true,
+      "welcome": false,
+      "help": true,
+      "tickets": true,
+      "reportTickets": true,
+      "techTickets": true,
+      "editBattles": true
+    },
+    "ticketCategoryId": "1506004826046206124",
+    "ticketOpenRoleId": "1505993853054750831",
+    "staffRoleIds": [
+      "1498364664902451220",
+      "1498364671386718340",
+      "1498364679049707773",
+      "1498364680949989416",
+      "1498364682392834118",
+      "1498364683395272878",
+      "1498364685819576441",
+      "1498364686758842388",
+      "1498364687723790376",
+      "1498364688520450049"
+    ],
+    "verifiedRoleId": "1506008339429986324",
+    "welcomeChannelId": "1505253358951203046",
+    "editBattlePanelChannelId": "1504184944283488328"
+  }
+}
