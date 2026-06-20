@@ -36,6 +36,7 @@ const TICKET_SELECT_MENU_ID = "select_ticket_type";
 const GIVEAWAY_JOIN_PREFIX = "giveaway_join_";
 const EDIT_BATTLE_JOIN_BUTTON_ID = "join_edit_battle";
 const RANDOM_PRIVATE_CHAT_BUTTON_ID = "random_private_chat";
+const PRIVATE_CHAT_INVITATIONS_BUTTON_ID = "private_chat_invitations";
 const TICKET_PANEL_IMAGE_PATH = path.join(
   process.env.USERPROFILE || "C:\\Users\\איתי",
   "Downloads",
@@ -322,6 +323,10 @@ function buildEditBattlePanel(guildId) {
       .setCustomId(RANDOM_PRIVATE_CHAT_BUTTON_ID)
       .setLabel(String(config.privateChatRandomButtonLabel || "Random Private Chat").slice(0, 80))
       .setStyle(getTicketButtonStyle(config.privateChatRandomButtonStyle)),
+    new ButtonBuilder()
+      .setCustomId(PRIVATE_CHAT_INVITATIONS_BUTTON_ID)
+      .setLabel(String(config.privateChatInvitationsButtonLabel || "My Invitations").slice(0, 80))
+      .setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [row], files };
@@ -370,6 +375,7 @@ function applyPlanLimits(guildId, config) {
     privateChatButtonStyle: DEFAULT_CONFIG.privateChatButtonStyle,
     privateChatRandomButtonLabel: DEFAULT_CONFIG.privateChatRandomButtonLabel,
     privateChatRandomButtonStyle: DEFAULT_CONFIG.privateChatRandomButtonStyle,
+    privateChatInvitationsButtonLabel: DEFAULT_CONFIG.privateChatInvitationsButtonLabel,
     privateChatPanelImageUrl: "",
     blockedWords: (config.blockedWords || []).slice(0, FREE_BLOCKED_WORD_LIMIT),
   };
@@ -465,6 +471,7 @@ function buildGuildConfigFromBody(body, files = {}, guildId = "") {
     privateChatRandomButtonStyle: premium && ["primary", "secondary", "success", "danger"].includes(body.privateChatRandomButtonStyle)
       ? body.privateChatRandomButtonStyle
       : DEFAULT_CONFIG.privateChatRandomButtonStyle,
+    privateChatInvitationsButtonLabel: premium ? englishText(trimField(body.privateChatInvitationsButtonLabel)).slice(0, 80) : DEFAULT_CONFIG.privateChatInvitationsButtonLabel,
     privateChatPanelImageUrl: premium ? uploadedImageUrl(files, "privateChatPanelImageFile", body.privateChatPanelImageUrl) : "",
     giveawayChannelId: keepExistingWhenBlank(body.giveawayChannelId, existingConfig.giveawayChannelId),
     giveawayPrize: englishText(trimField(body.giveawayPrize)),
@@ -1528,6 +1535,8 @@ app.get("/guild/:guildId", requireAuth, requireGuildAdmin, async (req, res) => {
               { id: "success", label: "ירוק" },
               { id: "danger", label: "אדום" },
             ], config.privateChatRandomButtonStyle || "success", "ירוק")}
+            <label>Invitations button text</label>
+            ${textInput("privateChatInvitationsButtonLabel", config.privateChatInvitationsButtonLabel, "My Invitations")}
             <label>תמונה להודעה</label>
             ${textInput("privateChatPanelImageUrl", config.privateChatPanelImageUrl, "https://example.com/image.png")}
             <label>או העלאת תמונה מהמחשב</label>
