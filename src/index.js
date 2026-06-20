@@ -321,15 +321,12 @@ async function scheduleChannelClose(channel, reason) {
   if (closingChannels.has(channel.id)) return;
   closingChannels.add(channel.id);
 
-  const shouldResendTicketPanel = Boolean(getTicketOwnerId(channel));
-  if (shouldResendTicketPanel) {
+  const isTicketChannel = Boolean(getTicketOwnerId(channel));
+  if (isTicketChannel) {
     await sendTicketTranscript(channel, "סגירה אוטומטית").catch(console.error);
   }
   await channel.send(reason).catch(console.error);
   setTimeout(() => {
-    if (shouldResendTicketPanel) {
-      resendTicketPanel(channel.guild, channel).catch(console.error);
-    }
     finishVotesByChannel.delete(channel.id);
     closingChannels.delete(channel.id);
     channel.delete("Both users finished").catch(console.error);
@@ -911,21 +908,6 @@ async function sendFreshPanels(guild, channel) {
   return sentPanels;
 }
 
-async function resendTicketPanel(guild, fallbackChannel) {
-  const { features, ticketPanelChannelId } = getGuildConfig(guild.id);
-  if (!features.tickets) return;
-
-  const configuredChannel = ticketPanelChannelId
-    ? await guild.channels.fetch(ticketPanelChannelId).catch(() => null)
-    : null;
-  const targetChannel = configuredChannel?.isTextBased() ? configuredChannel : fallbackChannel;
-  if (!targetChannel?.isTextBased()) return;
-
-  for (const panel of buildTicketPanelMessages(guild.id)) {
-    await targetChannel.send(panel).catch(console.error);
-  }
-}
-
 async function syncSlashCommands() {
   if (!CLIENT_ID || !DISCORD_TOKEN) return;
 
@@ -1497,7 +1479,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply("הטיקט ייסגר בעוד 5 שניות.");
     await sendTicketTranscript(interaction.channel, `${interaction.user.tag || interaction.user.username} (${interaction.user.id})`).catch(console.error);
     setTimeout(() => {
-      resendTicketPanel(interaction.guild, interaction.channel).catch(console.error);
       interaction.channel.delete("Ticket closed").catch(console.error);
     }, 5000);
     return;
